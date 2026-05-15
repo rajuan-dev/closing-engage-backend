@@ -1,0 +1,242 @@
+
+> closing-engage-backend@1.0.0 dev
+> ts-node-dev --respawn --transpile-only src/server.ts
+
+[INFO] 03:50:19 ts-node-dev ver. 2.0.0 (using ts-node ver. 10.9.2, typescript ver. 6.0.3)
+◇ injected env (8) from .env // tip: ◈ secrets for agents [www.dotenvx.com]
+[ERROR] 03:50:21 Error: listen EADDRINUSE: address already in use :::5000
+[INFO] 04:22:43 Restarting: D:\RAJUAN-PERSONAL\VSCODE\closing-engage\closing-engage-backend\src\server.ts has been modified
+◇ injected env (8) from .env // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
+[2026-05-16 04:22:48.495 +0600] [32mINFO[39m: [36mMongoDB connection established[39m
+[2026-05-16 04:22:48.497 +0600] [32mINFO[39m: [36mClosing Engage backend server started[39m
+    [35mport[39m: 5000
+    [35menvironment[39m: "development"
+    [35mapiPrefix[39m: "/api/v1"
+[2026-05-16 04:22:48.678 +0600] [32mINFO[39m: [36mGET / completed with 200[39m
+    [35mreq[39m: {
+      "id": "59248f4e-03f8-433d-897b-d14d8adc1b9b",
+      "method": "GET",
+      "url": "/api/v1/health",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "127.0.0.1:5000",
+        "connection": "keep-alive"
+      },
+      "remoteAddress": "::ffff:127.0.0.1",
+      "remotePort": 7030
+    }
+    [35mres[39m: {
+      "statusCode": 200,
+      "headers": {
+        "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+        "cross-origin-opener-policy": "same-origin",
+        "cross-origin-resource-policy": "same-origin",
+        "origin-agent-cluster": "?1",
+        "referrer-policy": "no-referrer",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "x-content-type-options": "nosniff",
+        "x-dns-prefetch-control": "off",
+        "x-download-options": "noopen",
+        "x-frame-options": "SAMEORIGIN",
+        "x-permitted-cross-domain-policies": "none",
+        "x-xss-protection": "0",
+        "vary": "Origin, Accept-Encoding",
+        "access-control-allow-credentials": "true",
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "164",
+        "etag": "W/\"a4-6Q2ljT+HHnM0X4R5tAr6vdt/kxo\""
+      }
+    }
+    [35mresponseTime[39m: 6
+[2026-05-16 04:22:48.690 +0600] [32mINFO[39m: [36mGET / completed with 200[39m
+    [35mreq[39m: {
+      "id": "4712eafa-5872-4cca-b234-594c384516ef",
+      "method": "GET",
+      "url": "/api/v1/health",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "127.0.0.1:5000",
+        "connection": "keep-alive"
+      },
+      "remoteAddress": "::ffff:127.0.0.1",
+      "remotePort": 7031
+    }
+    [35mres[39m: {
+      "statusCode": 200,
+      "headers": {
+        "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+        "cross-origin-opener-policy": "same-origin",
+        "cross-origin-resource-policy": "same-origin",
+        "origin-agent-cluster": "?1",
+        "referrer-policy": "no-referrer",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "x-content-type-options": "nosniff",
+        "x-dns-prefetch-control": "off",
+        "x-download-options": "noopen",
+        "x-frame-options": "SAMEORIGIN",
+        "x-permitted-cross-domain-policies": "none",
+        "x-xss-protection": "0",
+        "vary": "Origin, Accept-Encoding",
+        "access-control-allow-credentials": "true",
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "164",
+        "etag": "W/\"a4-v3UC+i/Vf4ky7tV5/NGXdmCM4Ms\""
+      }
+    }
+    [35mresponseTime[39m: 1
+[2026-05-16 04:23:08.992 +0600] [32mINFO[39m: [36mGET / completed with 200[39m
+    [35mreq[39m: {
+      "id": "3645b63e-7fc8-4ab4-83cc-b0a473e9a28e",
+      "method": "GET",
+      "url": "/api/v1/health",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "127.0.0.1:5000",
+        "connection": "keep-alive"
+      },
+      "remoteAddress": "::ffff:127.0.0.1",
+      "remotePort": 7052
+    }
+    [35mres[39m: {
+      "statusCode": 200,
+      "headers": {
+        "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+        "cross-origin-opener-policy": "same-origin",
+        "cross-origin-resource-policy": "same-origin",
+        "origin-agent-cluster": "?1",
+        "referrer-policy": "no-referrer",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "x-content-type-options": "nosniff",
+        "x-dns-prefetch-control": "off",
+        "x-download-options": "noopen",
+        "x-frame-options": "SAMEORIGIN",
+        "x-permitted-cross-domain-policies": "none",
+        "x-xss-protection": "0",
+        "vary": "Origin, Accept-Encoding",
+        "access-control-allow-credentials": "true",
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "164",
+        "etag": "W/\"a4-tlA6zSXt8ZNEdldGLWgdxgsNLQk\""
+      }
+    }
+    [35mresponseTime[39m: 1
+[2026-05-16 04:23:21.054 +0600] [32mINFO[39m: [36mGET / completed with 200[39m
+    [35mreq[39m: {
+      "id": "23b2de91-5ec7-4393-bf19-3f98fd39edad",
+      "method": "GET",
+      "url": "/api/v1/health",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:5000",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Microsoft Windows 10.0.26200; en-US) PowerShell/7.6.1",
+        "accept-encoding": "gzip, deflate, br"
+      },
+      "remoteAddress": "::1",
+      "remotePort": 8970
+    }
+    [35mres[39m: {
+      "statusCode": 200,
+      "headers": {
+        "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+        "cross-origin-opener-policy": "same-origin",
+        "cross-origin-resource-policy": "same-origin",
+        "origin-agent-cluster": "?1",
+        "referrer-policy": "no-referrer",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "x-content-type-options": "nosniff",
+        "x-dns-prefetch-control": "off",
+        "x-download-options": "noopen",
+        "x-frame-options": "SAMEORIGIN",
+        "x-permitted-cross-domain-policies": "none",
+        "x-xss-protection": "0",
+        "vary": "Origin, Accept-Encoding",
+        "access-control-allow-credentials": "true",
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "164",
+        "etag": "W/\"a4-P90/LUrtGNiipJzrvXU5tDOk8UU\""
+      }
+    }
+    [35mresponseTime[39m: 1
+[2026-05-16 04:25:23.046 +0600] [32mINFO[39m: [36mGET / completed with 200[39m
+    [35mreq[39m: {
+      "id": "2e0b5043-7d11-43b4-8fc4-94c41a072586",
+      "method": "GET",
+      "url": "/api/v1/health",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "127.0.0.1:5000",
+        "connection": "keep-alive"
+      },
+      "remoteAddress": "::ffff:127.0.0.1",
+      "remotePort": 5518
+    }
+    [35mres[39m: {
+      "statusCode": 200,
+      "headers": {
+        "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+        "cross-origin-opener-policy": "same-origin",
+        "cross-origin-resource-policy": "same-origin",
+        "origin-agent-cluster": "?1",
+        "referrer-policy": "no-referrer",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "x-content-type-options": "nosniff",
+        "x-dns-prefetch-control": "off",
+        "x-download-options": "noopen",
+        "x-frame-options": "SAMEORIGIN",
+        "x-permitted-cross-domain-policies": "none",
+        "x-xss-protection": "0",
+        "vary": "Origin, Accept-Encoding",
+        "access-control-allow-credentials": "true",
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "164",
+        "etag": "W/\"a4-LGb800VBBnpjTtkR/VXj8hkIqBM\""
+      }
+    }
+    [35mresponseTime[39m: 0
+[INFO] 04:29:13 Restarting: D:\RAJUAN-PERSONAL\VSCODE\closing-engage\closing-engage-backend\src\config\env.ts has been modified
+◇ injected env (8) from .env // tip: ⌁ auth for agents [www.vestauth.com]
+[2026-05-16 04:29:14.224 +0600] [31mERROR[39m: [36mMongoDB connection failed[39m
+    err: {
+      "type": "Error",
+      "message": "querySrv ECONNREFUSED _mongodb._tcp.cluster0.wwzvak5.mongodb.net",
+      "stack":
+          Error: querySrv ECONNREFUSED _mongodb._tcp.cluster0.wwzvak5.mongodb.net
+              at QueryReqWrap.onresolve [as oncomplete] (node:internal/dns/promises:294:17)
+      "code": "ECONNREFUSED",
+      "syscall": "querySrv",
+      "hostname": "_mongodb._tcp.cluster0.wwzvak5.mongodb.net"
+    }
+[2026-05-16 04:29:14.226 +0600] [41mFATAL[49m: [36mFailed to start server[39m
+    err: {
+      "type": "Error",
+      "message": "querySrv ECONNREFUSED _mongodb._tcp.cluster0.wwzvak5.mongodb.net",
+      "stack":
+          Error: querySrv ECONNREFUSED _mongodb._tcp.cluster0.wwzvak5.mongodb.net
+              at QueryReqWrap.onresolve [as oncomplete] (node:internal/dns/promises:294:17)
+      "code": "ECONNREFUSED",
+      "syscall": "querySrv",
+      "hostname": "_mongodb._tcp.cluster0.wwzvak5.mongodb.net"
+    }
+[INFO] 04:29:23 Restarting: D:\RAJUAN-PERSONAL\VSCODE\closing-engage\closing-engage-backend\src\config\database.ts has been modified
+◇ injected env (8) from .env // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
+[2026-05-16 04:29:23.821 +0600] [33mWARN[39m: [36mMongoDB SRV lookup failed, retrying with fallback DNS servers[39m
+    [35moriginalDnsServers[39m: [
+      "127.0.0.1"
+    ]
+    [35mfallbackDnsServers[39m: [
+      "1.1.1.1",
+      "8.8.8.8"
+    ]
+[2026-05-16 04:29:25.381 +0600] [32mINFO[39m: [36mMongoDB connection established with fallback DNS servers[39m
+    [35mdnsServers[39m: [
+      "1.1.1.1",
+      "8.8.8.8"
+    ]
+[2026-05-16 04:29:25.406 +0600] [33mWARN[39m: [36mClosing Engage backend is already running in another process[39m
+    [35mport[39m: 5000
+    [35mhealthUrl[39m: "http://localhost:5000/api/v1/health"

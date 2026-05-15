@@ -8,6 +8,7 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(5000),
   API_PREFIX: z.string().trim().min(1).default('/api/v1'),
   MONGODB_URI: z.string().trim().min(1, 'MONGODB_URI is required'),
+  MONGODB_DNS_FALLBACK_SERVERS: z.string().trim().optional(),
   CORS_ORIGIN: z.string().trim().min(1, 'CORS_ORIGIN is required'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 });
@@ -26,6 +27,9 @@ const rawEnv = parsedEnv.data;
 
 export const env = {
   ...rawEnv,
+  MONGODB_DNS_FALLBACK_SERVERS: rawEnv.MONGODB_DNS_FALLBACK_SERVERS?.split(',')
+    .map((server) => server.trim())
+    .filter(Boolean) ?? ['1.1.1.1', '8.8.8.8'],
   CORS_ORIGIN: rawEnv.CORS_ORIGIN.split(',')
     .map((origin) => origin.trim())
     .filter(Boolean),

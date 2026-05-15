@@ -1,0 +1,6 @@
+Error: listen EADDRINUSE: address already in use :::5000
+    at Server.setupListenHandle [as _listen2] (node:net:2008:16)
+    at listenInCluster (node:net:2065:12)
+    at Server.listen (node:net:2170:7)
+    at bootstrap (D:\RAJUAN-PERSONAL\VSCODE\closing-engage\closing-engage-backend\src\server.ts:30:10)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
