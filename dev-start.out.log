@@ -240,3 +240,21 @@
 [2026-05-16 04:29:25.406 +0600] [33mWARN[39m: [36mClosing Engage backend is already running in another process[39m
     [35mport[39m: 5000
     [35mhealthUrl[39m: "http://localhost:5000/api/v1/health"
+[INFO] 05:00:12 Restarting: D:\RAJUAN-PERSONAL\VSCODE\closing-engage\closing-engage-backend\src\routes\index.ts has been modified
+◇ injected env (8) from .env // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
+[2026-05-16 05:00:13.583 +0600] [33mWARN[39m: [36mMongoDB SRV lookup failed, retrying with fallback DNS servers[39m
+    [35moriginalDnsServers[39m: [
+      "127.0.0.1"
+    ]
+    [35mfallbackDnsServers[39m: [
+      "1.1.1.1",
+      "8.8.8.8"
+    ]
+[2026-05-16 05:00:15.399 +0600] [32mINFO[39m: [36mMongoDB connection established with fallback DNS servers[39m
+    [35mdnsServers[39m: [
+      "1.1.1.1",
+      "8.8.8.8"
+    ]
+[2026-05-16 05:00:15.411 +0600] [33mWARN[39m: [36mClosing Engage backend is already running in another process[39m
+    [35mport[39m: 5000
+    [35mhealthUrl[39m: "http://localhost:5000/api/v1/health"
