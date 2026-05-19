@@ -9,6 +9,8 @@ const envSchema = z.object({
   API_PREFIX: z.string().trim().min(1).default('/api/v1'),
   MONGODB_URI: z.string().trim().min(1, 'MONGODB_URI is required'),
   MONGODB_DNS_FALLBACK_SERVERS: z.string().trim().optional(),
+  JWT_SECRET: z.string().trim().min(1, 'JWT_SECRET is required'),
+  JWT_EXPIRES_IN: z.string().trim().min(1).default('1d'),
   AWS_REGION: z.string().trim().min(1, 'AWS_REGION is required'),
   AWS_ACCESS_KEY_ID: z.string().trim().min(1, 'AWS_ACCESS_KEY_ID is required'),
   AWS_SECRET_ACCESS_KEY: z.string().trim().min(1, 'AWS_SECRET_ACCESS_KEY is required'),

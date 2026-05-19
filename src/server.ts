@@ -5,6 +5,7 @@ import { app } from './app';
 import { connectDatabase } from './config/database';
 import { env } from './config/env';
 import { logger } from './core/logger';
+import { ensureSeedAdmin } from './modules/auth/auth.service';
 
 const server = http.createServer(app);
 
@@ -55,6 +56,7 @@ const shutdown = (signal: NodeJS.Signals) => {
 
 const bootstrap = async (): Promise<void> => {
   await connectDatabase();
+  await ensureSeedAdmin();
 
   server.on('error', async (error: NodeJS.ErrnoException) => {
     if (error.code === 'EADDRINUSE') {
