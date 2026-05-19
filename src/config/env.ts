@@ -9,7 +9,10 @@ const envSchema = z.object({
   API_PREFIX: z.string().trim().min(1).default('/api/v1'),
   MONGODB_URI: z.string().trim().min(1, 'MONGODB_URI is required'),
   MONGODB_DNS_FALLBACK_SERVERS: z.string().trim().optional(),
-  CORS_ORIGIN: z.string().trim().min(1, 'CORS_ORIGIN is required'),
+  AWS_REGION: z.string().trim().min(1, 'AWS_REGION is required'),
+  AWS_ACCESS_KEY_ID: z.string().trim().min(1, 'AWS_ACCESS_KEY_ID is required'),
+  AWS_SECRET_ACCESS_KEY: z.string().trim().min(1, 'AWS_SECRET_ACCESS_KEY is required'),
+  AWS_S3_BUCKET: z.string().trim().min(1, 'AWS_S3_BUCKET is required'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 });
 
@@ -30,7 +33,4 @@ export const env = {
   MONGODB_DNS_FALLBACK_SERVERS: rawEnv.MONGODB_DNS_FALLBACK_SERVERS?.split(',')
     .map((server) => server.trim())
     .filter(Boolean) ?? ['1.1.1.1', '8.8.8.8'],
-  CORS_ORIGIN: rawEnv.CORS_ORIGIN.split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean),
 } as const;
