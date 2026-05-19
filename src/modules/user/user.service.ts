@@ -3,6 +3,7 @@ import { StatusCodes } from 'http-status-codes';
 
 import { env } from '../../config/env';
 import { HttpError } from '../../core/http-error';
+import { logger } from '../../core/logger';
 import { sendEmail } from '../email/email.service';
 import { CompanyUser, ICompanyUser } from './company-user.model';
 import { INotaryUser, NotaryUser } from './notary-user.model';
@@ -107,6 +108,44 @@ const sendNotaryInviteEmail = async (notary: ReturnType<typeof serializeNotaryUs
   });
 };
 
+const safelySendCompanyInviteEmail = async (
+  company: ReturnType<typeof serializeCompanyUser>,
+  password?: string,
+): Promise<void> => {
+  try {
+    await sendCompanyInviteEmail(company, password);
+  } catch (error) {
+    logger.error(
+      {
+        err: error,
+        companyId: company.id,
+        companyName: company.companyName,
+        targetEmail: company.contactEmail || company.businessEmail,
+      },
+      'Company user persisted, but invite email failed',
+    );
+  }
+};
+
+const safelySendNotaryInviteEmail = async (
+  notary: ReturnType<typeof serializeNotaryUser>,
+  password?: string,
+): Promise<void> => {
+  try {
+    await sendNotaryInviteEmail(notary, password);
+  } catch (error) {
+    logger.error(
+      {
+        err: error,
+        notaryId: notary.id,
+        fullName: notary.fullName,
+        targetEmail: notary.email,
+      },
+      'Notary user persisted, but invite email failed',
+    );
+  }
+};
+
 export const listCompanies = async () => {
   const companies = await CompanyUser.find().sort({ createdAt: -1 });
   return companies.map(serializeCompanyUser);
@@ -137,7 +176,7 @@ export const createCompany = async (payload: {
   const serialized = serializeCompanyUser(company);
 
   if (payload.sendInvite) {
-    await sendCompanyInviteEmail(serialized, payload.password);
+    await safelySendCompanyInviteEmail(serialized, payload.password);
   }
 
   return serialized;
@@ -182,7 +221,7 @@ export const updateCompany = async (
   const serialized = serializeCompanyUser(company);
 
   if (payload.sendInvite) {
-    await sendCompanyInviteEmail(serialized, payload.password);
+    await safelySendCompanyInviteEmail(serialized, payload.password);
   }
 
   return serialized;
@@ -226,7 +265,7 @@ export const createNotary = async (payload: {
   const serialized = serializeNotaryUser(notary);
 
   if (payload.sendInvite) {
-    await sendNotaryInviteEmail(serialized, payload.password);
+    await safelySendNotaryInviteEmail(serialized, payload.password);
   }
 
   return serialized;
@@ -273,7 +312,7 @@ export const updateNotary = async (
   const serialized = serializeNotaryUser(notary);
 
   if (payload.sendInvite) {
-    await sendNotaryInviteEmail(serialized, payload.password);
+    await safelySendNotaryInviteEmail(serialized, payload.password);
   }
 
   return serialized;

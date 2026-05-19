@@ -11,6 +11,8 @@ const envSchema = z.object({
   MONGODB_DNS_FALLBACK_SERVERS: z.string().trim().optional(),
   JWT_SECRET: z.string().trim().min(1, 'JWT_SECRET is required'),
   JWT_EXPIRES_IN: z.string().trim().min(1).default('1d'),
+  ADMIN_SEED_EMAIL: z.string().trim().email().default('quantumerrors@gmail.com'),
+  ADMIN_SEED_PASSWORD: z.string().trim().min(1).default('admin@123'),
   AWS_REGION: z.string().trim().min(1, 'AWS_REGION is required'),
   AWS_ACCESS_KEY_ID: z.string().trim().min(1, 'AWS_ACCESS_KEY_ID is required'),
   AWS_SECRET_ACCESS_KEY: z.string().trim().min(1, 'AWS_SECRET_ACCESS_KEY is required'),

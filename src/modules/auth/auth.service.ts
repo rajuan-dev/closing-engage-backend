@@ -7,13 +7,11 @@ import { HttpError } from '../../core/http-error';
 import { logger } from '../../core/logger';
 import { AdminUser, IAdminUser } from './auth.model';
 
-const SEED_ADMIN_EMAIL = 'admin@closingengage.com';
-const SEED_ADMIN_PASSWORD = 'admin@123';
+const LEGACY_SEED_ADMIN_EMAIL = 'admin@closingengage.com';
 const DEFAULT_ADMIN_PROFILE = {
   fullName: 'Closing Engage Admin',
   phone: '+1 (555) 010-1000',
   companyName: 'Closing Engage',
-  companyEmail: 'admin@closingengage.com',
   contactNumber: '+1 (555) 010-1000',
   businessAddress: 'Austin, Texas',
 } as const;
@@ -61,7 +59,8 @@ const createAdminToken = (admin: IAdminUser): string =>
   );
 
 export const ensureSeedAdmin = async (): Promise<void> => {
-  const existingAdmin = await AdminUser.findOne({ email: SEED_ADMIN_EMAIL });
+  const seedEmail = env.ADMIN_SEED_EMAIL.trim().toLowerCase();
+  const existingAdmin = await AdminUser.findOne({ email: seedEmail });
 
   if (existingAdmin) {
     const missingProfileFields = [
@@ -77,11 +76,29 @@ export const ensureSeedAdmin = async (): Promise<void> => {
       existingAdmin.fullName = existingAdmin.fullName?.trim() || DEFAULT_ADMIN_PROFILE.fullName;
       existingAdmin.phone = existingAdmin.phone?.trim() || DEFAULT_ADMIN_PROFILE.phone;
       existingAdmin.companyName = existingAdmin.companyName?.trim() || DEFAULT_ADMIN_PROFILE.companyName;
-      existingAdmin.companyEmail = existingAdmin.companyEmail?.trim() || DEFAULT_ADMIN_PROFILE.companyEmail;
+      existingAdmin.companyEmail = existingAdmin.companyEmail?.trim() || seedEmail;
       existingAdmin.contactNumber = existingAdmin.contactNumber?.trim() || DEFAULT_ADMIN_PROFILE.contactNumber;
       existingAdmin.businessAddress = existingAdmin.businessAddress?.trim() || DEFAULT_ADMIN_PROFILE.businessAddress;
       await existingAdmin.save();
-      logger.info({ email: SEED_ADMIN_EMAIL }, 'Default admin profile fields backfilled');
+      logger.info({ email: seedEmail }, 'Default admin profile fields backfilled');
+    }
+
+    if (seedEmail !== LEGACY_SEED_ADMIN_EMAIL) {
+      const legacySeedAdmin = await AdminUser.findOne({ email: LEGACY_SEED_ADMIN_EMAIL });
+      if (legacySeedAdmin?.isActive) {
+        legacySeedAdmin.isActive = false;
+        await legacySeedAdmin.save();
+
+        logger.info(
+          {
+            email: LEGACY_SEED_ADMIN_EMAIL,
+            replacementEmail: seedEmail,
+            adminId: legacySeedAdmin._id.toString(),
+            action: 'legacy-seed-deactivated',
+          },
+          'Legacy seed admin deactivated',
+        );
+      }
     }
 
     logger.info(
@@ -97,19 +114,46 @@ export const ensureSeedAdmin = async (): Promise<void> => {
     return;
   }
 
-  const passwordHash = await bcrypt.hash(SEED_ADMIN_PASSWORD, 12);
+  const legacySeedAdmin = await AdminUser.findOne({ email: LEGACY_SEED_ADMIN_EMAIL });
+
+  if (legacySeedAdmin) {
+    legacySeedAdmin.email = seedEmail;
+    legacySeedAdmin.companyEmail = seedEmail;
+    legacySeedAdmin.fullName = legacySeedAdmin.fullName?.trim() || DEFAULT_ADMIN_PROFILE.fullName;
+    legacySeedAdmin.phone = legacySeedAdmin.phone?.trim() || DEFAULT_ADMIN_PROFILE.phone;
+    legacySeedAdmin.companyName = legacySeedAdmin.companyName?.trim() || DEFAULT_ADMIN_PROFILE.companyName;
+    legacySeedAdmin.contactNumber = legacySeedAdmin.contactNumber?.trim() || DEFAULT_ADMIN_PROFILE.contactNumber;
+    legacySeedAdmin.businessAddress = legacySeedAdmin.businessAddress?.trim() || DEFAULT_ADMIN_PROFILE.businessAddress;
+    await legacySeedAdmin.save();
+
+    logger.info(
+      {
+        email: seedEmail,
+        previousEmail: LEGACY_SEED_ADMIN_EMAIL,
+        adminId: legacySeedAdmin._id.toString(),
+        seeded: true,
+        action: 'legacy-seed-email-updated',
+      },
+      'Admin seed check completed',
+    );
+
+    return;
+  }
+
+  const passwordHash = await bcrypt.hash(env.ADMIN_SEED_PASSWORD, 12);
 
   await AdminUser.create({
-    email: SEED_ADMIN_EMAIL,
+    email: seedEmail,
     passwordHash,
     role: 'admin',
     isActive: true,
     ...DEFAULT_ADMIN_PROFILE,
+    companyEmail: seedEmail,
   });
 
   logger.info(
     {
-      email: SEED_ADMIN_EMAIL,
+      email: seedEmail,
       seeded: true,
       action: 'created',
     },

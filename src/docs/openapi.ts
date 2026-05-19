@@ -22,6 +22,7 @@ export const openApiDocument = {
     { name: 'Team', description: 'Team member management endpoints' },
     { name: 'Access Requests', description: 'Public request intake and admin review endpoints' },
     { name: 'Users', description: 'Admin-managed title company and notary user endpoints' },
+    { name: 'Orders', description: 'Admin order creation, listing, assignment, status, and timeline endpoints' },
   ],
   components: {
     securitySchemes: {
@@ -508,6 +509,133 @@ export const openApiDocument = {
               data: {
                 type: 'array',
                 items: { $ref: '#/components/schemas/NotaryUser' },
+              },
+            },
+            required: ['data'],
+          },
+        ],
+      },
+      OrderStatus: {
+        type: 'string',
+        enum: ['Received', 'Assigned', 'Under Review', 'Approved', 'Completed', 'Rejected'],
+        example: 'Received',
+      },
+      OrderRow: {
+        type: 'array',
+        description:
+          'Dashboard table row tuple: [orderId, titleCompany, companyInitials, assignedNotary, propertyLocation, signingDateTime, status, avatarKey].',
+        items: {
+          oneOf: [
+            { type: 'string' },
+            { $ref: '#/components/schemas/OrderStatus' },
+            { type: 'string', enum: ['none', 'jane', 'mark'] },
+          ],
+        },
+        example: [
+          '#ORD-90212',
+          'Grand Peak Title',
+          'GP',
+          'Unassigned',
+          '452 Pine St\nSan Francisco\nCA 94104',
+          '10/24/2024\n2:00 PM',
+          'Received',
+          'none',
+        ],
+        minItems: 8,
+        maxItems: 8,
+      },
+      OrderDocumentPayload: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', example: 'Closing_Package.pdf' },
+          meta: { type: 'string', example: '4.2 MB • Uploaded 2h ago' },
+        },
+        required: ['name', 'meta'],
+      },
+      OrderPayload: {
+        type: 'object',
+        properties: {
+          titleCompany: { type: 'string', example: 'Grand Peak Title' },
+          propertyAddress: { type: 'string', example: '452 Pine St, San Francisco, CA 94104' },
+          signerName: { type: 'string', example: 'Daniel Brooks' },
+          signerPhone: { type: 'string', example: '(555) 401-8291' },
+          signingDate: { type: 'string', example: '10/24/2024' },
+          signingTime: { type: 'string', example: '2:00 PM' },
+          status: { type: 'string', enum: ['Received', 'Assigned', 'Under Review'], example: 'Received' },
+          priority: { type: 'string', enum: ['Standard', 'Rush', 'High Touch'], example: 'Standard' },
+          notaryPreference: {
+            type: 'string',
+            enum: ['First available', 'Verified only', 'Manual assignment'],
+            example: 'First available',
+          },
+          instructions: { type: 'string', example: 'Please ensure all signatures are in blue ink.' },
+          documents: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/OrderDocumentPayload' },
+          },
+        },
+        required: ['titleCompany', 'propertyAddress', 'signingDate', 'signingTime'],
+      },
+      OrderStatusPayload: {
+        type: 'object',
+        properties: {
+          status: { $ref: '#/components/schemas/OrderStatus' },
+        },
+        required: ['status'],
+      },
+      OrderAssignNotaryPayload: {
+        type: 'object',
+        properties: {
+          notaryName: { type: 'string', example: 'Sarah Jenkins' },
+          notaryId: { type: 'string', example: '682afc5f8d249f890fad6601' },
+        },
+        required: ['notaryName'],
+      },
+      OrderTimelineEvent: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', example: 'Order created by Admin' },
+          date: { type: 'string', example: 'May 19, 2026, 10:15 AM' },
+          tone: { type: 'string', enum: ['blue', 'slate', 'green', 'red'], example: 'blue' },
+        },
+        required: ['title', 'date', 'tone'],
+      },
+      OrderListResponse: {
+        allOf: [
+          { $ref: '#/components/schemas/SuccessEnvelope' },
+          {
+            type: 'object',
+            properties: {
+              data: {
+                type: 'array',
+                items: { $ref: '#/components/schemas/OrderRow' },
+              },
+            },
+            required: ['data'],
+          },
+        ],
+      },
+      OrderSingleResponse: {
+        allOf: [
+          { $ref: '#/components/schemas/SuccessEnvelope' },
+          {
+            type: 'object',
+            properties: {
+              data: { $ref: '#/components/schemas/OrderRow' },
+            },
+            required: ['data'],
+          },
+        ],
+      },
+      OrderTimelineResponse: {
+        allOf: [
+          { $ref: '#/components/schemas/SuccessEnvelope' },
+          {
+            type: 'object',
+            properties: {
+              data: {
+                type: 'array',
+                items: { $ref: '#/components/schemas/OrderTimelineEvent' },
               },
             },
             required: ['data'],
@@ -1205,6 +1333,302 @@ export const openApiDocument = {
           },
           '404': {
             description: 'Notary user not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/orders': {
+      get: {
+        tags: ['Orders'],
+        summary: 'List admin dashboard order rows',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            in: 'query',
+            name: 'status',
+            required: false,
+            schema: { $ref: '#/components/schemas/OrderStatus' },
+          },
+          {
+            in: 'query',
+            name: 'search',
+            required: false,
+            schema: { type: 'string' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Orders fetched',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/OrderListResponse' },
+              },
+            },
+          },
+          '401': {
+            description: 'Invalid or missing token',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+      post: {
+        tags: ['Orders'],
+        summary: 'Create an order from the admin dashboard modal',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/OrderPayload' },
+            },
+          },
+        },
+        responses: {
+          '201': {
+            description: 'Order created',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/OrderSingleResponse' },
+              },
+            },
+          },
+          '400': {
+            description: 'Validation failed',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+          '401': {
+            description: 'Invalid or missing token',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/orders/{id}': {
+      get: {
+        tags: ['Orders'],
+        summary: 'Fetch one order detail by Mongo id or order number',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            in: 'path',
+            name: 'id',
+            required: true,
+            schema: { type: 'string', example: '#ORD-90212' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Order fetched',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/SuccessEnvelope' },
+              },
+            },
+          },
+          '404': {
+            description: 'Order not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+      patch: {
+        tags: ['Orders'],
+        summary: 'Update order details',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            in: 'path',
+            name: 'id',
+            required: true,
+            schema: { type: 'string', example: '#ORD-90212' },
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/OrderPayload' },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Order updated',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/OrderSingleResponse' },
+              },
+            },
+          },
+          '404': {
+            description: 'Order not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+      delete: {
+        tags: ['Orders'],
+        summary: 'Delete an order',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            in: 'path',
+            name: 'id',
+            required: true,
+            schema: { type: 'string', example: '#ORD-90212' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Order deleted',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/SuccessEnvelope' },
+              },
+            },
+          },
+          '404': {
+            description: 'Order not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/orders/{id}/status': {
+      patch: {
+        tags: ['Orders'],
+        summary: 'Update order status from the order detail page',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            in: 'path',
+            name: 'id',
+            required: true,
+            schema: { type: 'string', example: '#ORD-90212' },
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/OrderStatusPayload' },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Order status updated',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/OrderSingleResponse' },
+              },
+            },
+          },
+          '404': {
+            description: 'Order not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/orders/{id}/assign-notary': {
+      patch: {
+        tags: ['Orders'],
+        summary: 'Assign a notary to an order',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            in: 'path',
+            name: 'id',
+            required: true,
+            schema: { type: 'string', example: '#ORD-90212' },
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/OrderAssignNotaryPayload' },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Order assignment updated',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/OrderSingleResponse' },
+              },
+            },
+          },
+          '404': {
+            description: 'Order not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/orders/{id}/timeline': {
+      get: {
+        tags: ['Orders'],
+        summary: 'List order timeline events',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            in: 'path',
+            name: 'id',
+            required: true,
+            schema: { type: 'string', example: '#ORD-90212' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Timeline fetched',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/OrderTimelineResponse' },
+              },
+            },
+          },
+          '404': {
+            description: 'Order not found',
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ErrorEnvelope' },
