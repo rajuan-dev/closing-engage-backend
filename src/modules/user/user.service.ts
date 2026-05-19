@@ -19,9 +19,44 @@ const formatDate = (date: Date): string =>
 
 const companyColor = 'bg-[#DCE7FF] text-[#3165CF]';
 const notaryColor = 'bg-[#FFE2D3] text-[#C66B33]';
+const visiblePasswordKey = crypto.createHash('sha256').update(env.JWT_SECRET).digest();
 
 const initialsFrom = (value: string) => value.trim().slice(0, 2).toUpperCase();
 const generateTemporaryPassword = (): string => crypto.randomBytes(9).toString('base64url');
+const encryptVisiblePassword = (password: string): string => {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', visiblePasswordKey, iv);
+  const encrypted = Buffer.concat([cipher.update(password, 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+
+  return `${iv.toString('base64url')}.${tag.toString('base64url')}.${encrypted.toString('base64url')}`;
+};
+
+const decryptVisiblePassword = (value?: string): string | undefined => {
+  if (!value) return undefined;
+
+  try {
+    const [ivEncoded, tagEncoded, encryptedEncoded] = value.split('.');
+    if (!ivEncoded || !tagEncoded || !encryptedEncoded) return undefined;
+
+    const decipher = crypto.createDecipheriv(
+      'aes-256-gcm',
+      visiblePasswordKey,
+      Buffer.from(ivEncoded, 'base64url'),
+    );
+    decipher.setAuthTag(Buffer.from(tagEncoded, 'base64url'));
+
+    const decrypted = Buffer.concat([
+      decipher.update(Buffer.from(encryptedEncoded, 'base64url')),
+      decipher.final(),
+    ]);
+
+    return decrypted.toString('utf8');
+  } catch (error) {
+    logger.warn({ err: error }, 'Failed to decrypt admin-visible password');
+    return undefined;
+  }
+};
 const buildCompanyPublicId = (company: ICompanyUser): string => {
   const year = company.createdAt?.getFullYear?.() || new Date().getFullYear();
   const digest = crypto.createHash('sha1').update(company._id.toString()).digest('hex').slice(0, 6).toUpperCase();
@@ -66,6 +101,8 @@ const serializeCompanyUser = (company: ICompanyUser) => ({
   userName: company.userName ?? '',
   sendInvite: company.sendInvite ?? false,
   verify: company.verify ?? false,
+  adminVisiblePassword:
+    company.passwordChangedBy !== 'user' ? decryptVisiblePassword(company.adminVisiblePasswordCipher) : undefined,
   passwordChangedBy: company.passwordChangedBy ?? 'admin',
   passwordChangedAt: company.passwordChangedAt?.toISOString() ?? company.createdAt.toISOString(),
   passwordStatus:
@@ -91,6 +128,8 @@ const serializeNotaryUser = (notary: INotaryUser) => ({
   userName: notary.userName ?? '',
   sendInvite: notary.sendInvite ?? false,
   verify: notary.verify ?? false,
+  adminVisiblePassword:
+    notary.passwordChangedBy !== 'user' ? decryptVisiblePassword(notary.adminVisiblePasswordCipher) : undefined,
   passwordChangedBy: notary.passwordChangedBy ?? 'admin',
   passwordChangedAt: notary.passwordChangedAt?.toISOString() ?? notary.createdAt.toISOString(),
   passwordStatus:
@@ -247,6 +286,7 @@ export const createCompany = async (payload: {
     businessEmail: payload.businessEmail.trim().toLowerCase(),
     contactEmail: payload.contactEmail?.trim().toLowerCase(),
     passwordHash,
+    adminVisiblePasswordCipher: encryptVisiblePassword(temporaryPassword),
     passwordChangedBy: 'admin',
     passwordChangedAt: new Date(),
   });
@@ -296,6 +336,7 @@ export const updateCompany = async (
   if (payload.verify !== undefined) company.verify = payload.verify;
   if (payload.password) {
     company.passwordHash = await bcrypt.hash(payload.password, 12);
+    company.adminVisiblePasswordCipher = encryptVisiblePassword(payload.password);
     company.passwordChangedBy = 'admin';
     company.passwordChangedAt = new Date();
   }
@@ -347,6 +388,7 @@ export const createNotary = async (payload: {
     specialty: payload.specialty || 'Mobile Loan Signing Agent',
     email: payload.email.trim().toLowerCase(),
     passwordHash,
+    adminVisiblePasswordCipher: encryptVisiblePassword(temporaryPassword),
     passwordChangedBy: 'admin',
     passwordChangedAt: new Date(),
   });
@@ -398,6 +440,7 @@ export const updateNotary = async (
   if (payload.verify !== undefined) notary.verify = payload.verify;
   if (payload.password) {
     notary.passwordHash = await bcrypt.hash(payload.password, 12);
+    notary.adminVisiblePasswordCipher = encryptVisiblePassword(payload.password);
     notary.passwordChangedBy = 'admin';
     notary.passwordChangedAt = new Date();
   }

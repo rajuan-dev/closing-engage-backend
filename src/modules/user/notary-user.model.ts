@@ -12,6 +12,7 @@ export interface INotaryUser extends Document {
   serviceArea?: string;
   userName?: string;
   passwordHash?: string;
+  adminVisiblePasswordCipher?: string;
   passwordResetOtp?: string;
   passwordResetExpiresAt?: Date;
   passwordResetVerifiedAt?: Date;
@@ -36,6 +37,7 @@ const notaryUserSchema = new Schema<INotaryUser>(
     serviceArea: { type: String },
     userName: { type: String, trim: true, unique: true, sparse: true },
     passwordHash: { type: String },
+    adminVisiblePasswordCipher: { type: String },
     passwordResetOtp: { type: String },
     passwordResetExpiresAt: { type: Date },
     passwordResetVerifiedAt: { type: Date },

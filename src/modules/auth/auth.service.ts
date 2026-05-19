@@ -521,6 +521,7 @@ export const updateCompanyPassword = async (id: string, currentPassword: string,
   }
 
   company.passwordHash = await bcrypt.hash(newPassword, 12);
+  company.adminVisiblePasswordCipher = undefined;
   company.passwordChangedBy = 'user';
   company.passwordChangedAt = new Date();
   await company.save();
@@ -540,6 +541,7 @@ export const updateNotaryPassword = async (id: string, currentPassword: string, 
   }
 
   notary.passwordHash = await bcrypt.hash(newPassword, 12);
+  notary.adminVisiblePasswordCipher = undefined;
   notary.passwordChangedBy = 'user';
   notary.passwordChangedAt = new Date();
   await notary.save();
@@ -607,6 +609,7 @@ export const resetPasswordWithOtp = async (
 
   target.account.passwordHash = await bcrypt.hash(newPassword, 12);
   if (target.role === 'company' || target.role === 'notary') {
+    target.account.adminVisiblePasswordCipher = undefined;
     target.account.passwordChangedBy = 'user';
     target.account.passwordChangedAt = new Date();
   }

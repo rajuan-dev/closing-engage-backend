@@ -21,4 +21,15 @@ Planned module folders:
 - `search`
 - `reports`
 
-Every implemented endpoint must be documented in `src/docs/openapi.ts`.
+Every implemented endpoint must be documented in Swagger.
+
+Use `npm run create:api` when you add a new API module. That command scaffolds:
+
+- `route`
+- `controller`
+- `service`
+- Swagger docs fragment
+- route registration
+- OpenAPI registration
+
+The generated Swagger fragment is automatically merged into `src/docs/openapi.ts`, so every scaffolded API starts with documentation on day one.

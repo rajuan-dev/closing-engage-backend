@@ -1,6 +1,9 @@
 import { env } from '../config/env';
+import { generatedOpenApiModules } from './generated-modules';
 
 const apiBaseUrl = `http://localhost:${env.PORT}${env.API_PREFIX}`;
+const generatedTags = generatedOpenApiModules.map((moduleDoc) => moduleDoc.tag);
+const generatedPaths = Object.assign({}, ...generatedOpenApiModules.map((moduleDoc) => moduleDoc.paths));
 
 export const openApiDocument = {
   openapi: '3.0.3',
@@ -25,6 +28,7 @@ export const openApiDocument = {
     { name: 'Orders', description: 'Admin order creation, listing, assignment, status, and timeline endpoints' },
     { name: 'Documents', description: 'Role-scoped document metadata, review, versioning, and signed URL endpoints' },
     { name: 'Notifications', description: 'Role-scoped notification inbox and read-state endpoints' },
+    ...generatedTags,
   ],
   components: {
     securitySchemes: {
@@ -2921,5 +2925,6 @@ export const openApiDocument = {
         },
       },
     },
+    ...generatedPaths,
   },
 } as const;
