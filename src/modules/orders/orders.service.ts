@@ -8,7 +8,17 @@ import { NotaryUser } from '../user/notary-user.model';
 import { IOrder, IOrderDocument, LoanType, NotaryPreference, Order, OrderPriority, OrderStatus } from './orders.model';
 
 type OrderRow = [string, string, string, string, string, string, OrderStatus, 'none' | 'jane' | 'mark'];
-type AuthContext = { id: string; email: string; role: 'admin' | 'company' | 'notary' };
+type AuthContext = {
+  id: string;
+  email: string;
+  role: 'admin' | 'company' | 'notary';
+  memberId?: string;
+  permissions?: {
+    createOrders: boolean;
+    viewOrders: boolean;
+    downloadDocuments: boolean;
+  };
+};
 
 const formatDate = (date: Date): string =>
   date.toLocaleDateString('en-US', {
@@ -70,7 +80,20 @@ const scopedQuery = (auth: AuthContext, base: Record<string, unknown> = {}) => {
   return { ...base, assignedNotaryId: auth.id };
 };
 
+const assertCompanyPermission = (
+  auth: AuthContext,
+  permission: 'createOrders' | 'viewOrders' | 'downloadDocuments',
+  message: string,
+) => {
+  if (auth.role !== 'company' || !auth.memberId) return;
+
+  if (!auth.permissions?.[permission]) {
+    throw new HttpError(StatusCodes.FORBIDDEN, message);
+  }
+};
+
 const findOrder = async (id: string, auth: AuthContext): Promise<IOrder> => {
+  assertCompanyPermission(auth, 'viewOrders', 'You do not have permission to view orders');
   const order = await Order.findOne(scopedQuery(auth, orderLookupQuery(id)));
 
   if (!order) {
@@ -146,6 +169,7 @@ const serializePortalOrder = (order: IOrder) => ({
 });
 
 export const listOrders = async (auth: AuthContext, filters: { status?: OrderStatus; search?: string }) => {
+  assertCompanyPermission(auth, 'viewOrders', 'You do not have permission to view orders');
   const query: Record<string, unknown> = scopedQuery(auth);
 
   if (filters.status) {
@@ -182,6 +206,8 @@ export const createOrder = async (auth: AuthContext, payload: {
   if (auth.role === 'notary') {
     throw new HttpError(StatusCodes.FORBIDDEN, 'Notaries cannot create orders');
   }
+
+  assertCompanyPermission(auth, 'createOrders', 'You do not have permission to create orders');
 
   let orderNumber = generateOrderNumber();
   while (await Order.exists({ orderNumber })) {

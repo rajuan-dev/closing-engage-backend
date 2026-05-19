@@ -10,7 +10,17 @@ import { CompanyUser } from '../user/company-user.model';
 import { NotaryUser } from '../user/notary-user.model';
 import { ClosingDocument, DocumentStatus, IClosingDocument, UploaderRole } from './documents.model';
 
-type AuthContext = { id: string; email: string; role: 'admin' | 'company' | 'notary' };
+type AuthContext = {
+  id: string;
+  email: string;
+  role: 'admin' | 'company' | 'notary';
+  memberId?: string;
+  permissions?: {
+    createOrders: boolean;
+    viewOrders: boolean;
+    downloadDocuments: boolean;
+  };
+};
 type DocumentQuery = Record<string, unknown>;
 
 type CreateDocumentPayload = {
@@ -125,6 +135,18 @@ const findDocument = async (auth: AuthContext, id: string): Promise<IClosingDocu
   return document;
 };
 
+const assertCompanyPermission = (
+  auth: AuthContext,
+  permission: 'createOrders' | 'viewOrders' | 'downloadDocuments',
+  message: string,
+) => {
+  if (auth.role !== 'company' || !auth.memberId) return;
+
+  if (!auth.permissions?.[permission]) {
+    throw new HttpError(StatusCodes.FORBIDDEN, message);
+  }
+};
+
 const uploadedByFor = async (auth: AuthContext, provided?: string): Promise<string> => {
   if (provided?.trim()) return provided.trim();
 
@@ -211,6 +233,7 @@ export const listDocuments = async (
   auth: AuthContext,
   filters: { status?: DocumentStatus; search?: string; shape?: 'admin' | 'portal' | 'detail' },
 ) => {
+  assertCompanyPermission(auth, 'viewOrders', 'You do not have permission to view documents');
   const query = await documentScopeQuery(auth);
 
   if (filters.status) {
@@ -306,6 +329,7 @@ export const createDocument = async (auth: AuthContext, payload: CreateDocumentP
 };
 
 export const getDocument = async (auth: AuthContext, id: string) => {
+  assertCompanyPermission(auth, 'viewOrders', 'You do not have permission to view documents');
   const document = await findDocument(auth, id);
   return serializeDocumentDetail(document);
 };
@@ -442,6 +466,12 @@ export const restoreDocumentVersion = async (auth: AuthContext, id: string, vers
 };
 
 export const getDocumentSignedUrl = async (auth: AuthContext, id: string, mode: 'download' | 'preview') => {
+  if (mode === 'download') {
+    assertCompanyPermission(auth, 'downloadDocuments', 'You do not have permission to download documents');
+  } else {
+    assertCompanyPermission(auth, 'viewOrders', 'You do not have permission to preview documents');
+  }
+
   const document = await findDocument(auth, id);
 
   try {

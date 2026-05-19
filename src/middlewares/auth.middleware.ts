@@ -38,9 +38,12 @@ export const requireCompanyAuth = (req: Request, _res: Response, next: NextFunct
   }
 
   req.company = {
-    id: payload.sub,
+    id: payload.companyId ?? payload.sub,
     email: payload.email,
     role: payload.role,
+    memberId: payload.memberId,
+    memberRole: payload.memberRole,
+    permissions: payload.permissions,
   };
   req.auth = req.company;
 
@@ -71,9 +74,12 @@ export const requireAnyAuth = (req: Request, _res: Response, next: NextFunction)
   const payload = verifyAuthToken(token);
 
   req.auth = {
-    id: payload.sub,
+    id: payload.role === 'company' ? payload.companyId ?? payload.sub : payload.sub,
     email: payload.email,
     role: payload.role,
+    memberId: payload.memberId,
+    memberRole: payload.memberRole,
+    permissions: payload.permissions,
   };
 
   if (payload.role === 'admin') {

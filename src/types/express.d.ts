@@ -12,6 +12,13 @@ declare global {
         id: string;
         email: string;
         role: 'company';
+        memberId?: string;
+        memberRole?: 'Admin' | 'Member';
+        permissions?: {
+          createOrders: boolean;
+          viewOrders: boolean;
+          downloadDocuments: boolean;
+        };
       };
       notary?: {
         id: string;
@@ -22,6 +29,13 @@ declare global {
         id: string;
         email: string;
         role: 'admin' | 'company' | 'notary';
+        memberId?: string;
+        memberRole?: 'Admin' | 'Member';
+        permissions?: {
+          createOrders: boolean;
+          viewOrders: boolean;
+          downloadDocuments: boolean;
+        };
       };
       requestId?: string;
     }

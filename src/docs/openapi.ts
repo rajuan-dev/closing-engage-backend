@@ -291,7 +291,7 @@ export const openApiDocument = {
       TeamMember: {
         type: 'object',
         properties: {
-          _id: { type: 'string', example: '682afc5f8d249f890fad3311' },
+          id: { type: 'string', example: '682afc5f8d249f890fad3311' },
           name: { type: 'string', example: 'Sarah Miller' },
           email: { type: 'string', format: 'email', example: 'sarah.miller@closingengage.com' },
           phone: { type: 'string', example: '+1 (555) 222-1000' },
@@ -302,11 +302,18 @@ export const openApiDocument = {
             example: 'Active',
           },
           joinedDate: { type: 'string', example: 'May 19, 2026' },
-          companyId: { type: 'string', example: 'COMP-10' },
-          createdAt: { type: 'string', format: 'date-time' },
-          updatedAt: { type: 'string', format: 'date-time' },
+          companyId: { type: 'string', example: '682afc5f8d249f890fad5501' },
+          permissions: {
+            type: 'object',
+            properties: {
+              createOrders: { type: 'boolean', example: true },
+              viewOrders: { type: 'boolean', example: true },
+              downloadDocuments: { type: 'boolean', example: false },
+            },
+            required: ['createOrders', 'viewOrders', 'downloadDocuments'],
+          },
         },
-        required: ['name', 'email', 'role', 'status', 'joinedDate', 'companyId'],
+        required: ['id', 'name', 'email', 'role', 'status', 'joinedDate', 'companyId', 'permissions'],
       },
       TeamMemberPayload: {
         type: 'object',
@@ -320,10 +327,17 @@ export const openApiDocument = {
             enum: ['Active', 'Pending Invite', 'Inactive'],
             example: 'Active',
           },
-          joinedDate: { type: 'string', example: 'May 19, 2026' },
-          companyId: { type: 'string', example: 'COMP-10' },
+          permissions: {
+            type: 'object',
+            properties: {
+              createOrders: { type: 'boolean', example: true },
+              viewOrders: { type: 'boolean', example: true },
+              downloadDocuments: { type: 'boolean', example: false },
+            },
+          },
+          sendInvite: { type: 'boolean', example: true },
         },
-        required: ['name', 'email', 'joinedDate', 'companyId'],
+        required: ['name', 'email'],
       },
       TeamListResponse: {
         allOf: [
@@ -347,6 +361,26 @@ export const openApiDocument = {
             type: 'object',
             properties: {
               data: { $ref: '#/components/schemas/TeamMember' },
+            },
+            required: ['data'],
+          },
+        ],
+      },
+      TeamInviteResponse: {
+        allOf: [
+          { $ref: '#/components/schemas/SuccessEnvelope' },
+          {
+            type: 'object',
+            properties: {
+              data: {
+                type: 'object',
+                properties: {
+                  member: { $ref: '#/components/schemas/TeamMember' },
+                  temporaryPassword: { type: 'string', example: 'rv4Y7dDfKPY3' },
+                  inviteDelivered: { type: 'boolean', example: true },
+                },
+                required: ['member', 'temporaryPassword', 'inviteDelivered'],
+              },
             },
             required: ['data'],
           },
@@ -1601,7 +1635,8 @@ export const openApiDocument = {
     '/team': {
       get: {
         tags: ['Team'],
-        summary: 'List team members',
+        summary: 'List team members for the authenticated company workspace',
+        security: [{ bearerAuth: [] }],
         responses: {
           '200': {
             description: 'Team members fetched',
@@ -1611,11 +1646,28 @@ export const openApiDocument = {
               },
             },
           },
+          '401': {
+            description: 'Invalid or missing company token',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+          '403': {
+            description: 'Authenticated team member is not allowed to manage team members',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
         },
       },
       post: {
         tags: ['Team'],
-        summary: 'Create a new team member',
+        summary: 'Invite a new company team member with portal permissions',
+        security: [{ bearerAuth: [] }],
         requestBody: {
           required: true,
           content: {
@@ -1626,15 +1678,31 @@ export const openApiDocument = {
         },
         responses: {
           '201': {
-            description: 'Team member created',
+            description: 'Team member created and temporary login password generated',
             content: {
               'application/json': {
-                schema: { $ref: '#/components/schemas/TeamSingleResponse' },
+                schema: { $ref: '#/components/schemas/TeamInviteResponse' },
               },
             },
           },
           '400': {
             description: 'Validation or persistence error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+          '409': {
+            description: 'A team member with this email already exists',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+          '403': {
+            description: 'Authenticated team member is not allowed to manage team members',
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ErrorEnvelope' },
@@ -1648,6 +1716,7 @@ export const openApiDocument = {
       patch: {
         tags: ['Team'],
         summary: 'Update an existing team member by email',
+        security: [{ bearerAuth: [] }],
         parameters: [
           {
             in: 'path',
@@ -1681,11 +1750,20 @@ export const openApiDocument = {
               },
             },
           },
+          '403': {
+            description: 'Authenticated team member is not allowed to manage team members',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
         },
       },
       delete: {
         tags: ['Team'],
         summary: 'Delete a team member by email',
+        security: [{ bearerAuth: [] }],
         parameters: [
           {
             in: 'path',
@@ -1705,6 +1783,14 @@ export const openApiDocument = {
           },
           '404': {
             description: 'Member not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+          '403': {
+            description: 'Authenticated team member is not allowed to manage team members',
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ErrorEnvelope' },

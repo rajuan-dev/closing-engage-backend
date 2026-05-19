@@ -7,6 +7,7 @@ import { asyncHandler } from '../../utils/async-handler';
 import {
   getAdminById,
   getCompanyById,
+  getCompanyMemberSession,
   getNotaryById,
   loginAdmin,
   loginCompany,
@@ -151,7 +152,9 @@ export const me = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const companyMe = asyncHandler(async (req: Request, res: Response) => {
-  const company = await getCompanyById(req.company!.id);
+  const company = req.company!.memberId
+    ? await getCompanyMemberSession(req.company!.memberId)
+    : await getCompanyById(req.company!.id);
 
   return sendResponse(res, {
     statusCode: StatusCodes.OK,

@@ -7,6 +7,7 @@ import { env } from '../../config/env';
 import { HttpError } from '../../core/http-error';
 import { logger } from '../../core/logger';
 import { sendEmail } from '../email/email.service';
+import { ITeamMember, TeamMember } from '../team/team.model';
 import { CompanyUser, ICompanyUser } from '../user/company-user.model';
 import { INotaryUser, NotaryUser } from '../user/notary-user.model';
 import { AdminUser, IAdminUser } from './auth.model';
@@ -30,6 +31,14 @@ interface AuthJwtPayload {
   sub: string;
   email: string;
   role: 'admin' | 'company' | 'notary';
+  companyId?: string;
+  memberId?: string;
+  memberRole?: 'Admin' | 'Member';
+  permissions?: {
+    createOrders: boolean;
+    viewOrders: boolean;
+    downloadDocuments: boolean;
+  };
 }
 
 interface AdminProfileInput {
@@ -101,6 +110,34 @@ const sanitizeCompany = (company: ICompanyUser) => ({
   address: company.address ?? '',
   contactEmail: company.contactEmail ?? '',
   userName: company.userName ?? '',
+  accountType: 'owner' as const,
+  permissions: {
+    createOrders: true,
+    viewOrders: true,
+    downloadDocuments: true,
+  },
+});
+
+const sanitizeCompanyMember = (member: ITeamMember, company: ICompanyUser) => ({
+  id: member._id.toString(),
+  companyId: company._id.toString(),
+  role: 'company' as const,
+  accountType: 'team-member' as const,
+  memberRole: member.role,
+  name: member.name,
+  fullName: member.name,
+  email: member.email,
+  phone: member.phone ?? '',
+  status: member.status,
+  companyName: company.companyName,
+  businessEmail: company.businessEmail,
+  contactEmail: company.contactEmail ?? '',
+  address: company.address ?? '',
+  permissions: member.permissions ?? {
+    createOrders: true,
+    viewOrders: true,
+    downloadDocuments: false,
+  },
 });
 
 const sanitizeNotary = (notary: INotaryUser) => ({
@@ -138,6 +175,21 @@ const createAdminToken = (admin: IAdminUser): string =>
 
 const createCompanyToken = (company: ICompanyUser): string =>
   createToken({ id: company._id.toString(), email: company.businessEmail, role: 'company' });
+
+const createCompanyMemberToken = (member: ITeamMember): string =>
+  jwt.sign(
+    {
+      sub: member._id.toString(),
+      companyId: member.companyId,
+      memberId: member._id.toString(),
+      memberRole: member.role,
+      permissions: member.permissions,
+      email: member.email,
+      role: 'company',
+    },
+    env.JWT_SECRET,
+    { expiresIn: env.JWT_EXPIRES_IN as jwt.SignOptions['expiresIn'] },
+  );
 
 const createNotaryToken = (notary: INotaryUser): string =>
   createToken({ id: notary._id.toString(), email: notary.email, role: 'notary' });
@@ -359,6 +411,37 @@ export const loginCompany = async (email: string, password: string) => {
   };
 };
 
+export const loginCompanyMember = async (email: string, password: string) => {
+  const normalizedEmail = normalizeEmail(email);
+  const member = await TeamMember.findOne({ email: normalizedEmail }).select('+passwordHash');
+
+  if (!member || member.status === 'Inactive' || !member.passwordHash) {
+    throw new HttpError(StatusCodes.UNAUTHORIZED, 'Invalid email or password');
+  }
+
+  const company = await CompanyUser.findById(member.companyId);
+  if (!company || company.status !== 'Active') {
+    throw new HttpError(StatusCodes.UNAUTHORIZED, 'Invalid email or password');
+  }
+
+  const isPasswordValid = await bcrypt.compare(password, member.passwordHash);
+
+  if (!isPasswordValid) {
+    throw new HttpError(StatusCodes.UNAUTHORIZED, 'Invalid email or password');
+  }
+
+  if (member.status === 'Pending Invite') {
+    member.status = 'Active';
+    member.joinedDate = formatDate(new Date());
+    await member.save();
+  }
+
+  return {
+    token: createCompanyMemberToken(member),
+    company: sanitizeCompanyMember(member, company),
+  };
+};
+
 export const loginNotary = async (email: string, password: string) => {
   const normalizedEmail = normalizeEmail(email);
   const notary = await NotaryUser.findOne({
@@ -407,6 +490,21 @@ export const getCompanyById = async (id: string) => {
   return sanitizeCompany(company);
 };
 
+export const getCompanyMemberSession = async (memberId: string) => {
+  const member = await TeamMember.findById(memberId);
+
+  if (!member || member.status === 'Inactive') {
+    throw new HttpError(StatusCodes.UNAUTHORIZED, 'Company member account not found');
+  }
+
+  const company = await CompanyUser.findById(member.companyId);
+  if (!company || company.status !== 'Active') {
+    throw new HttpError(StatusCodes.UNAUTHORIZED, 'Company account not found');
+  }
+
+  return sanitizeCompanyMember(member, company);
+};
+
 export const getNotaryById = async (id: string) => {
   const notary = await NotaryUser.findById(id);
 
@@ -424,6 +522,20 @@ export const loginPortalUser = async (emailOrUserName: string, password: string)
       token: companyResult.token,
       role: 'company' as const,
       user: companyResult.company,
+      redirectTo: '/company/dashboard',
+    };
+  } catch (error) {
+    if (!(error instanceof HttpError) || error.statusCode !== StatusCodes.UNAUTHORIZED) {
+      throw error;
+    }
+  }
+
+  try {
+    const memberResult = await loginCompanyMember(emailOrUserName, password);
+    return {
+      token: memberResult.token,
+      role: 'company' as const,
+      user: memberResult.company,
       redirectTo: '/company/dashboard',
     };
   } catch (error) {
