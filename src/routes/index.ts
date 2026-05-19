@@ -3,7 +3,7 @@ import { Router } from 'express';
 import { accessRequestRouter } from '../modules/access-request/access-request.route';
 import { authRouter } from '../modules/auth/auth.route';
 import { healthRouter } from '../modules/health/health.route';
-import { orderRouter } from '../modules/order/order.route';
+import { orderRouter } from '../modules/orders/orders.route';
 import { teamRouter } from '../modules/team/team.route';
 import { userRouter } from '../modules/user/user.route';
 

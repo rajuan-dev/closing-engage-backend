@@ -1,12 +1,24 @@
 import { Document, Schema, Types, model } from 'mongoose';
 
-export const orderStatuses = ['Received', 'Assigned', 'Under Review', 'Approved', 'Completed', 'Rejected'] as const;
-export const orderPriorities = ['Standard', 'Rush', 'High Touch'] as const;
+export const orderStatuses = [
+  'Received',
+  'Assigned',
+  'In Progress',
+  'Under Review',
+  'Approved',
+  'Completed',
+  'Rejected',
+  'Pending Upload',
+  'Submitted',
+] as const;
+export const orderPriorities = ['Standard', 'Rush', 'High Touch', 'High', 'Low', 'Normal Processing', 'Urgent Request'] as const;
 export const notaryPreferences = ['First available', 'Verified only', 'Manual assignment'] as const;
+export const loanTypes = ['Refinance', 'Purchase', 'HELOC', 'Other'] as const;
 
 export type OrderStatus = (typeof orderStatuses)[number];
 export type OrderPriority = (typeof orderPriorities)[number];
 export type NotaryPreference = (typeof notaryPreferences)[number];
+export type LoanType = (typeof loanTypes)[number];
 
 export interface IOrderDocument {
   name: string;
@@ -23,14 +35,18 @@ export interface IOrderTimelineEvent {
 
 export interface IOrder extends Document {
   orderNumber: string;
+  title?: string;
   titleCompany: string;
   companyInitials: string;
   companyId?: Types.ObjectId;
+  clientName?: string;
   signerName?: string;
   signerPhone?: string;
   propertyAddress: string;
   signingDate: string;
   signingTime: string;
+  loanType?: LoanType;
+  scanbacksRequired: boolean;
   status: OrderStatus;
   priority: OrderPriority;
   notaryPreference: NotaryPreference;
@@ -38,6 +54,7 @@ export interface IOrder extends Document {
   assignedNotaryName: string;
   avatarKey: 'none' | 'jane' | 'mark';
   specialInstructions?: string;
+  notaryNotes?: string;
   documents: IOrderDocument[];
   timeline: IOrderTimelineEvent[];
   createdByAdminId?: Types.ObjectId;
@@ -67,14 +84,18 @@ const orderTimelineEventSchema = new Schema<IOrderTimelineEvent>(
 const orderSchema = new Schema<IOrder>(
   {
     orderNumber: { type: String, required: true, unique: true, trim: true, index: true },
+    title: { type: String, trim: true },
     titleCompany: { type: String, required: true, trim: true },
     companyInitials: { type: String, required: true, trim: true },
     companyId: { type: Schema.Types.ObjectId, ref: 'CompanyUser', index: true },
+    clientName: { type: String, trim: true },
     signerName: { type: String, trim: true },
     signerPhone: { type: String, trim: true },
     propertyAddress: { type: String, required: true, trim: true },
     signingDate: { type: String, required: true, trim: true },
     signingTime: { type: String, required: true, trim: true },
+    loanType: { type: String, enum: loanTypes },
+    scanbacksRequired: { type: Boolean, default: false },
     status: { type: String, enum: orderStatuses, default: 'Received', index: true },
     priority: { type: String, enum: orderPriorities, default: 'Standard' },
     notaryPreference: { type: String, enum: notaryPreferences, default: 'First available' },
@@ -82,6 +103,7 @@ const orderSchema = new Schema<IOrder>(
     assignedNotaryName: { type: String, default: 'Unassigned', trim: true },
     avatarKey: { type: String, enum: ['none', 'jane', 'mark'], default: 'none' },
     specialInstructions: { type: String, trim: true },
+    notaryNotes: { type: String, trim: true },
     documents: { type: [orderDocumentSchema], default: [] },
     timeline: { type: [orderTimelineEventSchema], default: [] },
     createdByAdminId: { type: Schema.Types.ObjectId, ref: 'AdminUser' },
@@ -90,6 +112,13 @@ const orderSchema = new Schema<IOrder>(
 );
 
 orderSchema.index({ titleCompany: 1, status: 1 });
-orderSchema.index({ propertyAddress: 'text', titleCompany: 'text', orderNumber: 'text', assignedNotaryName: 'text' });
+orderSchema.index({
+  propertyAddress: 'text',
+  titleCompany: 'text',
+  orderNumber: 'text',
+  assignedNotaryName: 'text',
+  clientName: 'text',
+  title: 'text',
+});
 
 export const Order = model<IOrder>('Order', orderSchema);

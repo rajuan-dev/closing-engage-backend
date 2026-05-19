@@ -11,6 +11,9 @@ export interface INotaryUser extends Document {
   serviceArea?: string;
   userName?: string;
   passwordHash?: string;
+  passwordResetOtp?: string;
+  passwordResetExpiresAt?: Date;
+  passwordResetVerifiedAt?: Date;
   sendInvite?: boolean;
   verify?: boolean;
   createdAt: Date;
@@ -27,8 +30,11 @@ const notaryUserSchema = new Schema<INotaryUser>(
     status: { type: String, enum: ['Active', 'Inactive', 'Pending'], default: 'Active' },
     expiry: { type: String },
     serviceArea: { type: String },
-    userName: { type: String, trim: true },
+    userName: { type: String, trim: true, unique: true, sparse: true },
     passwordHash: { type: String },
+    passwordResetOtp: { type: String },
+    passwordResetExpiresAt: { type: Date },
+    passwordResetVerifiedAt: { type: Date },
     sendInvite: { type: Boolean, default: false },
     verify: { type: Boolean, default: false },
   },

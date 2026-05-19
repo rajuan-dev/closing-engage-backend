@@ -4,7 +4,7 @@ import { z } from 'zod';
 
 import { sendResponse } from '../../core/response';
 import { asyncHandler } from '../../utils/async-handler';
-import { notaryPreferences, orderPriorities, orderStatuses } from './order.model';
+import { loanTypes, notaryPreferences, orderPriorities, orderStatuses } from './orders.model';
 import {
   assignNotary,
   createOrder,
@@ -14,7 +14,7 @@ import {
   listOrders,
   updateOrder,
   updateOrderStatus,
-} from './order.service';
+} from './orders.service';
 
 const nonEmpty = z.string().trim().min(1);
 
@@ -28,16 +28,22 @@ const listOrdersQuerySchema = z.object({
 });
 
 const orderPayloadSchema = z.object({
-  titleCompany: nonEmpty,
+  title: z.string().trim().optional(),
+  titleCompany: z.string().trim().optional(),
+  companyId: z.string().trim().optional(),
+  clientName: z.string().trim().optional(),
   propertyAddress: nonEmpty,
   signerName: z.string().trim().optional(),
   signerPhone: z.string().trim().optional(),
   signingDate: nonEmpty,
   signingTime: nonEmpty,
+  loanType: z.enum(loanTypes).optional(),
+  scanbacksRequired: z.boolean().optional(),
   status: z.enum(orderStatuses).default('Received'),
   priority: z.enum(orderPriorities).default('Standard'),
   notaryPreference: z.enum(notaryPreferences).default('First available'),
   instructions: z.string().trim().optional(),
+  notaryNotes: z.string().trim().optional(),
   documents: z
     .array(
       z.object({
@@ -61,7 +67,7 @@ const assignNotaryPayloadSchema = z.object({
 
 export const getOrders = asyncHandler(async (req: Request, res: Response) => {
   const query = listOrdersQuerySchema.parse(req.query);
-  const orders = await listOrders(query);
+  const orders = await listOrders(req.auth!, query);
 
   return sendResponse(res, {
     success: true,
@@ -72,7 +78,11 @@ export const getOrders = asyncHandler(async (req: Request, res: Response) => {
 
 export const postOrder = asyncHandler(async (req: Request, res: Response) => {
   const payload = orderPayloadSchema.parse(req.body);
-  const order = await createOrder({ ...payload, createdByAdminId: req.admin?.id });
+  const order = await createOrder(req.auth!, {
+    ...payload,
+    titleCompany: payload.titleCompany || 'Closing Engage',
+    createdByAdminId: req.admin?.id,
+  });
 
   return sendResponse(res, {
     statusCode: StatusCodes.CREATED,
@@ -84,7 +94,7 @@ export const postOrder = asyncHandler(async (req: Request, res: Response) => {
 
 export const getOrderById = asyncHandler(async (req: Request, res: Response) => {
   const { id } = idParamsSchema.parse(req.params);
-  const order = await getOrder(id);
+  const order = await getOrder(req.auth!, id);
 
   return sendResponse(res, {
     success: true,
@@ -96,7 +106,7 @@ export const getOrderById = asyncHandler(async (req: Request, res: Response) => 
 export const patchOrder = asyncHandler(async (req: Request, res: Response) => {
   const { id } = idParamsSchema.parse(req.params);
   const payload = orderUpdatePayloadSchema.parse(req.body);
-  const order = await updateOrder(id, payload);
+  const order = await updateOrder(req.auth!, id, payload);
 
   return sendResponse(res, {
     success: true,
@@ -107,7 +117,7 @@ export const patchOrder = asyncHandler(async (req: Request, res: Response) => {
 
 export const removeOrder = asyncHandler(async (req: Request, res: Response) => {
   const { id } = idParamsSchema.parse(req.params);
-  await deleteOrder(id);
+  await deleteOrder(req.auth!, id);
 
   return sendResponse(res, {
     success: true,
@@ -118,7 +128,7 @@ export const removeOrder = asyncHandler(async (req: Request, res: Response) => {
 export const patchOrderStatus = asyncHandler(async (req: Request, res: Response) => {
   const { id } = idParamsSchema.parse(req.params);
   const { status } = statusPayloadSchema.parse(req.body);
-  const order = await updateOrderStatus(id, status);
+  const order = await updateOrderStatus(req.auth!, id, status);
 
   return sendResponse(res, {
     success: true,
@@ -130,7 +140,7 @@ export const patchOrderStatus = asyncHandler(async (req: Request, res: Response)
 export const patchOrderAssignment = asyncHandler(async (req: Request, res: Response) => {
   const { id } = idParamsSchema.parse(req.params);
   const payload = assignNotaryPayloadSchema.parse(req.body);
-  const order = await assignNotary(id, payload);
+  const order = await assignNotary(req.auth!, id, payload);
 
   return sendResponse(res, {
     success: true,
@@ -141,7 +151,7 @@ export const patchOrderAssignment = asyncHandler(async (req: Request, res: Respo
 
 export const getOrderTimeline = asyncHandler(async (req: Request, res: Response) => {
   const { id } = idParamsSchema.parse(req.params);
-  const timeline = await listOrderTimeline(id);
+  const timeline = await listOrderTimeline(req.auth!, id);
 
   return sendResponse(res, {
     success: true,

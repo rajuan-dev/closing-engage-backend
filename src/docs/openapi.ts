@@ -130,6 +130,44 @@ export const openApiDocument = {
           },
         ],
       },
+      CompanyLoginResponse: {
+        allOf: [
+          { $ref: '#/components/schemas/SuccessEnvelope' },
+          {
+            type: 'object',
+            properties: {
+              data: {
+                type: 'object',
+                properties: {
+                  token: { type: 'string', example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' },
+                  company: { $ref: '#/components/schemas/CompanyUser' },
+                },
+                required: ['token', 'company'],
+              },
+            },
+            required: ['data'],
+          },
+        ],
+      },
+      NotaryLoginResponse: {
+        allOf: [
+          { $ref: '#/components/schemas/SuccessEnvelope' },
+          {
+            type: 'object',
+            properties: {
+              data: {
+                type: 'object',
+                properties: {
+                  token: { type: 'string', example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' },
+                  notary: { $ref: '#/components/schemas/NotaryUser' },
+                },
+                required: ['token', 'notary'],
+              },
+            },
+            required: ['data'],
+          },
+        ],
+      },
       AdminSessionResponse: {
         allOf: [
           { $ref: '#/components/schemas/SuccessEnvelope' },
@@ -148,6 +186,42 @@ export const openApiDocument = {
           },
         ],
       },
+      CompanySessionResponse: {
+        allOf: [
+          { $ref: '#/components/schemas/SuccessEnvelope' },
+          {
+            type: 'object',
+            properties: {
+              data: {
+                type: 'object',
+                properties: {
+                  company: { $ref: '#/components/schemas/CompanyUser' },
+                },
+                required: ['company'],
+              },
+            },
+            required: ['data'],
+          },
+        ],
+      },
+      NotarySessionResponse: {
+        allOf: [
+          { $ref: '#/components/schemas/SuccessEnvelope' },
+          {
+            type: 'object',
+            properties: {
+              data: {
+                type: 'object',
+                properties: {
+                  notary: { $ref: '#/components/schemas/NotaryUser' },
+                },
+                required: ['notary'],
+              },
+            },
+            required: ['data'],
+          },
+        ],
+      },
       UpdateAdminPasswordRequest: {
         type: 'object',
         properties: {
@@ -156,6 +230,34 @@ export const openApiDocument = {
           confirmPassword: { type: 'string', example: 'newStrongPassword123' },
         },
         required: ['currentPassword', 'newPassword', 'confirmPassword'],
+      },
+      ForgotPasswordRequest: {
+        type: 'object',
+        properties: {
+          email: { type: 'string', format: 'email', example: 'user@example.com' },
+          role: { type: 'string', enum: ['admin', 'company', 'notary'], example: 'company' },
+        },
+        required: ['email'],
+      },
+      VerifyOtpRequest: {
+        type: 'object',
+        properties: {
+          email: { type: 'string', format: 'email', example: 'user@example.com' },
+          role: { type: 'string', enum: ['admin', 'company', 'notary'], example: 'company' },
+          otp: { type: 'string', example: '123456' },
+        },
+        required: ['email', 'otp'],
+      },
+      ResetPasswordRequest: {
+        type: 'object',
+        properties: {
+          email: { type: 'string', format: 'email', example: 'user@example.com' },
+          role: { type: 'string', enum: ['admin', 'company', 'notary'], example: 'company' },
+          otp: { type: 'string', example: '123456' },
+          newPassword: { type: 'string', example: 'newStrongPassword123' },
+          confirmPassword: { type: 'string', example: 'newStrongPassword123' },
+        },
+        required: ['email', 'otp', 'newPassword', 'confirmPassword'],
       },
       TeamMember: {
         type: 'object',
@@ -517,7 +619,17 @@ export const openApiDocument = {
       },
       OrderStatus: {
         type: 'string',
-        enum: ['Received', 'Assigned', 'Under Review', 'Approved', 'Completed', 'Rejected'],
+        enum: [
+          'Received',
+          'Assigned',
+          'In Progress',
+          'Under Review',
+          'Approved',
+          'Completed',
+          'Rejected',
+          'Pending Upload',
+          'Submitted',
+        ],
         example: 'Received',
       },
       OrderRow: {
@@ -555,26 +667,80 @@ export const openApiDocument = {
       OrderPayload: {
         type: 'object',
         properties: {
+          title: { type: 'string', example: '452 Oak Street Refinance' },
           titleCompany: { type: 'string', example: 'Grand Peak Title' },
+          companyId: { type: 'string', example: '682afc5f8d249f890fad5501' },
+          clientName: { type: 'string', example: 'Daniel Brooks' },
           propertyAddress: { type: 'string', example: '452 Pine St, San Francisco, CA 94104' },
           signerName: { type: 'string', example: 'Daniel Brooks' },
           signerPhone: { type: 'string', example: '(555) 401-8291' },
           signingDate: { type: 'string', example: '10/24/2024' },
           signingTime: { type: 'string', example: '2:00 PM' },
-          status: { type: 'string', enum: ['Received', 'Assigned', 'Under Review'], example: 'Received' },
-          priority: { type: 'string', enum: ['Standard', 'Rush', 'High Touch'], example: 'Standard' },
+          loanType: { type: 'string', enum: ['Refinance', 'Purchase', 'HELOC', 'Other'], example: 'Refinance' },
+          scanbacksRequired: { type: 'boolean', example: true },
+          status: { $ref: '#/components/schemas/OrderStatus' },
+          priority: {
+            type: 'string',
+            enum: ['Standard', 'Rush', 'High Touch', 'High', 'Low', 'Normal Processing', 'Urgent Request'],
+            example: 'Standard',
+          },
           notaryPreference: {
             type: 'string',
             enum: ['First available', 'Verified only', 'Manual assignment'],
             example: 'First available',
           },
           instructions: { type: 'string', example: 'Please ensure all signatures are in blue ink.' },
+          notaryNotes: { type: 'string', example: 'Borrower requested evening signing.' },
           documents: {
             type: 'array',
             items: { $ref: '#/components/schemas/OrderDocumentPayload' },
           },
         },
-        required: ['titleCompany', 'propertyAddress', 'signingDate', 'signingTime'],
+        required: ['propertyAddress', 'signingDate', 'signingTime'],
+      },
+      PortalOrder: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', example: '#ORD-90212' },
+          clientName: { type: 'string', example: 'Daniel Brooks' },
+          propertyAddress: { type: 'string', example: '452 Pine St, San Francisco, CA 94104' },
+          location: { type: 'string', example: '452 Pine St, San Francisco, CA 94104' },
+          notary: { type: 'string', example: 'Sarah Jenkins' },
+          status: { $ref: '#/components/schemas/OrderStatus' },
+          date: { type: 'string', example: '10/24/2024' },
+          time: { type: 'string', example: '2:00 PM' },
+          loanType: { type: 'string', example: 'Refinance' },
+          scanbacksRequired: { type: 'boolean', example: true },
+        },
+        required: ['id', 'clientName', 'propertyAddress', 'location', 'notary', 'status', 'date'],
+      },
+      OrderDetail: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', example: '#ORD-90212' },
+          row: { $ref: '#/components/schemas/OrderRow' },
+          title: { type: 'string', example: '452 Oak Street Refinance' },
+          titleCompany: { type: 'string', example: 'Grand Peak Title' },
+          companyId: { type: 'string', example: '682afc5f8d249f890fad5501' },
+          clientName: { type: 'string', example: 'Daniel Brooks' },
+          propertyAddress: { type: 'string', example: '452 Pine St, San Francisco, CA 94104' },
+          location: { type: 'string', example: '452 Pine St, San Francisco, CA 94104' },
+          signingDate: { type: 'string', example: '10/24/2024' },
+          signingTime: { type: 'string', example: '2:00 PM' },
+          status: { $ref: '#/components/schemas/OrderStatus' },
+          priority: { type: 'string', example: 'Standard' },
+          loanType: { type: 'string', example: 'Refinance' },
+          scanbacksRequired: { type: 'boolean', example: true },
+          assignedNotaryName: { type: 'string', example: 'Sarah Jenkins' },
+          assignedNotaryId: { type: 'string', example: '682afc5f8d249f890fad6601' },
+          specialInstructions: { type: 'string', example: 'Please ensure blue ink signatures.' },
+          notaryNotes: { type: 'string', example: 'Signing completed without exceptions.' },
+          timeline: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/OrderTimelineEvent' },
+          },
+        },
+        required: ['id', 'status', 'propertyAddress', 'signingDate'],
       },
       OrderStatusPayload: {
         type: 'object',
@@ -608,7 +774,9 @@ export const openApiDocument = {
             properties: {
               data: {
                 type: 'array',
-                items: { $ref: '#/components/schemas/OrderRow' },
+                items: {
+                  oneOf: [{ $ref: '#/components/schemas/OrderRow' }, { $ref: '#/components/schemas/PortalOrder' }],
+                },
               },
             },
             required: ['data'],
@@ -621,7 +789,13 @@ export const openApiDocument = {
           {
             type: 'object',
             properties: {
-              data: { $ref: '#/components/schemas/OrderRow' },
+              data: {
+                oneOf: [
+                  { $ref: '#/components/schemas/OrderRow' },
+                  { $ref: '#/components/schemas/PortalOrder' },
+                  { $ref: '#/components/schemas/OrderDetail' },
+                ],
+              },
             },
             required: ['data'],
           },
@@ -775,6 +949,332 @@ export const openApiDocument = {
           },
           '400': {
             description: 'Current password incorrect or validation failed',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/auth/company/login': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Authenticate a title company user',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/AdminLoginRequest' },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Company login successful',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/CompanyLoginResponse' },
+              },
+            },
+          },
+          '401': {
+            description: 'Invalid email or password',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/auth/company/me': {
+      get: {
+        tags: ['Auth'],
+        summary: 'Get the authenticated company session',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': {
+            description: 'Company session is valid',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/CompanySessionResponse' },
+              },
+            },
+          },
+          '401': {
+            description: 'Invalid or missing token',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+          '403': {
+            description: 'Company role required',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/auth/company/profile': {
+      patch: {
+        tags: ['Auth'],
+        summary: 'Update the authenticated company profile',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/CompanyUserUpdatePayload' },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Company profile updated',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/CompanySessionResponse' },
+              },
+            },
+          },
+          '400': {
+            description: 'Validation failed',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/auth/company/password': {
+      patch: {
+        tags: ['Auth'],
+        summary: 'Update the authenticated company password',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/UpdateAdminPasswordRequest' },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Company password updated',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/SuccessEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/auth/notary/login': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Authenticate a notary user',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/AdminLoginRequest' },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Notary login successful',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/NotaryLoginResponse' },
+              },
+            },
+          },
+          '401': {
+            description: 'Invalid email or password',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/auth/notary/me': {
+      get: {
+        tags: ['Auth'],
+        summary: 'Get the authenticated notary session',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': {
+            description: 'Notary session is valid',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/NotarySessionResponse' },
+              },
+            },
+          },
+          '401': {
+            description: 'Invalid or missing token',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+          '403': {
+            description: 'Notary role required',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/auth/notary/profile': {
+      patch: {
+        tags: ['Auth'],
+        summary: 'Update the authenticated notary profile',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/NotaryUserUpdatePayload' },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Notary profile updated',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/NotarySessionResponse' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/auth/notary/password': {
+      patch: {
+        tags: ['Auth'],
+        summary: 'Update the authenticated notary password',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/UpdateAdminPasswordRequest' },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Notary password updated',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/SuccessEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/auth/forgot-password': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Request a password reset verification code',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ForgotPasswordRequest' },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Reset request accepted',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/SuccessEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/auth/verify-otp': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Verify a password reset code',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/VerifyOtpRequest' },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Verification code accepted',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/SuccessEnvelope' },
+              },
+            },
+          },
+          '400': {
+            description: 'Invalid or expired verification code',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/auth/reset-password': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Reset a password using a verified code',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ResetPasswordRequest' },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Password reset successfully',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/SuccessEnvelope' },
+              },
+            },
+          },
+          '400': {
+            description: 'Invalid or expired verification code',
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ErrorEnvelope' },
@@ -1345,7 +1845,9 @@ export const openApiDocument = {
     '/orders': {
       get: {
         tags: ['Orders'],
-        summary: 'List admin dashboard order rows',
+        summary: 'List orders scoped to the authenticated role',
+        description:
+          'Admins receive dashboard row tuples for all orders. Company users receive only their company orders. Notaries receive only assigned orders.',
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -1382,7 +1884,8 @@ export const openApiDocument = {
       },
       post: {
         tags: ['Orders'],
-        summary: 'Create an order from the admin dashboard modal',
+        summary: 'Create an order as an admin or title company user',
+        description: 'Notary users are not allowed to create orders. Company-created orders are automatically scoped to the caller.',
         security: [{ bearerAuth: [] }],
         requestBody: {
           required: true,
@@ -1423,7 +1926,7 @@ export const openApiDocument = {
     '/orders/{id}': {
       get: {
         tags: ['Orders'],
-        summary: 'Fetch one order detail by Mongo id or order number',
+        summary: 'Fetch one order detail by Mongo id or order number within caller scope',
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -1438,7 +1941,7 @@ export const openApiDocument = {
             description: 'Order fetched',
             content: {
               'application/json': {
-                schema: { $ref: '#/components/schemas/SuccessEnvelope' },
+                schema: { $ref: '#/components/schemas/OrderSingleResponse' },
               },
             },
           },
@@ -1454,7 +1957,9 @@ export const openApiDocument = {
       },
       patch: {
         tags: ['Orders'],
-        summary: 'Update order details',
+        summary: 'Update order details within caller scope',
+        description:
+          'Admins can update all order fields. Company users can update their own order details. Notaries can update only status and notary notes on assigned orders.',
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -1493,7 +1998,8 @@ export const openApiDocument = {
       },
       delete: {
         tags: ['Orders'],
-        summary: 'Delete an order',
+        summary: 'Delete an order as an admin',
+        description: 'Only admins can delete orders.',
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -1520,13 +2026,22 @@ export const openApiDocument = {
               },
             },
           },
+          '403': {
+            description: 'Admin role required',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
         },
       },
     },
     '/orders/{id}/status': {
       patch: {
         tags: ['Orders'],
-        summary: 'Update order status from the order detail page',
+        summary: 'Update order status within caller scope',
+        description: 'Admins can update any order. Company users can update company-owned orders. Notaries can update assigned orders.',
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -1568,6 +2083,7 @@ export const openApiDocument = {
       patch: {
         tags: ['Orders'],
         summary: 'Assign a notary to an order',
+        description: 'Only admins can assign notaries.',
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -1596,6 +2112,14 @@ export const openApiDocument = {
           },
           '404': {
             description: 'Order not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+          '403': {
+            description: 'Admin role required',
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ErrorEnvelope' },

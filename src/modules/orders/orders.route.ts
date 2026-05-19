@@ -1,11 +1,11 @@
 import { Router } from 'express';
 
-import { requireAdminAuth } from '../../middlewares/auth.middleware';
-import * as orderController from './order.controller';
+import { requireAnyAuth } from '../../middlewares/auth.middleware';
+import * as orderController from './orders.controller';
 
 const router = Router();
 
-router.use(requireAdminAuth);
+router.use(requireAnyAuth);
 
 router.get('/', orderController.getOrders);
 router.post('/', orderController.postOrder);

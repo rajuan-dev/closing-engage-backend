@@ -5,6 +5,9 @@ export interface IAdminUser extends Document {
   passwordHash: string;
   role: 'admin';
   isActive: boolean;
+  passwordResetOtp?: string;
+  passwordResetExpiresAt?: Date;
+  passwordResetVerifiedAt?: Date;
   fullName: string;
   phone: string;
   companyName: string;
@@ -19,6 +22,9 @@ const adminUserSchema = new Schema<IAdminUser>(
     passwordHash: { type: String, required: true },
     role: { type: String, enum: ['admin'], default: 'admin' },
     isActive: { type: Boolean, default: true },
+    passwordResetOtp: { type: String },
+    passwordResetExpiresAt: { type: Date },
+    passwordResetVerifiedAt: { type: Date },
     fullName: { type: String, required: true, trim: true },
     phone: { type: String, required: true, trim: true },
     companyName: { type: String, required: true, trim: true },

@@ -10,6 +10,9 @@ export interface ICompanyUser extends Document {
   contactEmail?: string;
   userName?: string;
   passwordHash?: string;
+  passwordResetOtp?: string;
+  passwordResetExpiresAt?: Date;
+  passwordResetVerifiedAt?: Date;
   sendInvite?: boolean;
   verify?: boolean;
   createdAt: Date;
@@ -25,8 +28,11 @@ const companyUserSchema = new Schema<ICompanyUser>(
     status: { type: String, enum: ['Active', 'Inactive', 'Pending'], default: 'Active' },
     address: { type: String },
     contactEmail: { type: String, trim: true, lowercase: true },
-    userName: { type: String, trim: true },
+    userName: { type: String, trim: true, unique: true, sparse: true },
     passwordHash: { type: String },
+    passwordResetOtp: { type: String },
+    passwordResetExpiresAt: { type: Date },
+    passwordResetVerifiedAt: { type: Date },
     sendInvite: { type: Boolean, default: false },
     verify: { type: Boolean, default: false },
   },

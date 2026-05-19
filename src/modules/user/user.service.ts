@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { StatusCodes } from 'http-status-codes';
 
 import { env } from '../../config/env';
@@ -19,6 +20,7 @@ const companyColor = 'bg-[#DCE7FF] text-[#3165CF]';
 const notaryColor = 'bg-[#FFE2D3] text-[#C66B33]';
 
 const initialsFrom = (value: string) => value.trim().slice(0, 2).toUpperCase();
+const generateTemporaryPassword = (): string => crypto.randomBytes(9).toString('base64url');
 
 const serializeCompanyUser = (company: ICompanyUser) => ({
   id: company._id.toString(),
@@ -164,7 +166,8 @@ export const createCompany = async (payload: {
   status: 'Active' | 'Inactive' | 'Pending';
   verify?: boolean;
 }) => {
-  const passwordHash = payload.password ? await bcrypt.hash(payload.password, 12) : undefined;
+  const temporaryPassword = payload.password || generateTemporaryPassword();
+  const passwordHash = await bcrypt.hash(temporaryPassword, 12);
 
   const company = await CompanyUser.create({
     ...payload,
@@ -176,7 +179,7 @@ export const createCompany = async (payload: {
   const serialized = serializeCompanyUser(company);
 
   if (payload.sendInvite) {
-    await safelySendCompanyInviteEmail(serialized, payload.password);
+    await safelySendCompanyInviteEmail(serialized, temporaryPassword);
   }
 
   return serialized;
@@ -253,7 +256,8 @@ export const createNotary = async (payload: {
   status: 'Active' | 'Inactive' | 'Pending';
   verify?: boolean;
 }) => {
-  const passwordHash = payload.password ? await bcrypt.hash(payload.password, 12) : undefined;
+  const temporaryPassword = payload.password || generateTemporaryPassword();
+  const passwordHash = await bcrypt.hash(temporaryPassword, 12);
 
   const notary = await NotaryUser.create({
     ...payload,
@@ -265,7 +269,7 @@ export const createNotary = async (payload: {
   const serialized = serializeNotaryUser(notary);
 
   if (payload.sendInvite) {
-    await safelySendNotaryInviteEmail(serialized, payload.password);
+    await safelySendNotaryInviteEmail(serialized, temporaryPassword);
   }
 
   return serialized;
