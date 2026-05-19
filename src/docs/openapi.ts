@@ -23,6 +23,8 @@ export const openApiDocument = {
     { name: 'Access Requests', description: 'Public request intake and admin review endpoints' },
     { name: 'Users', description: 'Admin-managed title company and notary user endpoints' },
     { name: 'Orders', description: 'Admin order creation, listing, assignment, status, and timeline endpoints' },
+    { name: 'Documents', description: 'Role-scoped document metadata, review, versioning, and signed URL endpoints' },
+    { name: 'Notifications', description: 'Role-scoped notification inbox and read-state endpoints' },
   ],
   components: {
     securitySchemes: {
@@ -811,6 +813,245 @@ export const openApiDocument = {
                 type: 'array',
                 items: { $ref: '#/components/schemas/OrderTimelineEvent' },
               },
+            },
+            required: ['data'],
+          },
+        ],
+      },
+      DocumentStatus: {
+        type: 'string',
+        enum: ['Pending Review', 'Approved', 'Rejected', 'Submitted', 'Pending', 'Verified'],
+        example: 'Pending Review',
+      },
+      DocumentRow: {
+        type: 'array',
+        description: 'Admin dashboard document row tuple: [fileName, orderId, uploadedBy, uploadDate, size, status].',
+        items: { type: 'string' },
+        minItems: 6,
+        maxItems: 6,
+        example: ['Closing_Disclosure_Final.pdf', '#ORD-882190', 'TITLE COMPANY', 'Oct 24, 2023', '1.2 MB', 'Pending'],
+      },
+      DocumentRecord: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', example: '682afc5f8d249f890fad7701' },
+          name: { type: 'string', example: 'Closing_Disclosure_Final.pdf' },
+          orderId: { type: 'string', example: 'ORD-882190' },
+          uploadDate: { type: 'string', example: 'Oct 24, 2023' },
+          size: { type: 'string', example: '1.2 MB' },
+          status: { type: 'string', enum: ['Approved', 'Submitted', 'Pending', 'Verified'], example: 'Pending' },
+          uploadedBy: { type: 'string', example: 'Northway Holdings' },
+        },
+        required: ['id', 'name', 'orderId', 'uploadDate', 'size', 'status'],
+      },
+      DocumentDetail: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', example: '682afc5f8d249f890fad7701' },
+          fileName: { type: 'string', example: 'Closing_Disclosure_Final.pdf' },
+          name: { type: 'string', example: 'Closing_Disclosure_Final.pdf' },
+          orderId: { type: 'string', example: 'ORD-882190' },
+          orderNumber: { type: 'string', example: '#ORD-882190' },
+          uploadedAt: { type: 'string', format: 'date-time' },
+          uploadDate: { type: 'string', example: 'Oct 24, 2023' },
+          size: { type: 'string', example: '1.2 MB' },
+          fileSize: { type: 'number', example: 1258291 },
+          mimeType: { type: 'string', example: 'application/pdf' },
+          status: { $ref: '#/components/schemas/DocumentStatus' },
+          displayStatus: { type: 'string', enum: ['Approved', 'Submitted', 'Pending', 'Verified'], example: 'Pending' },
+          uploadedBy: { type: 'string', example: 'Northway Holdings' },
+          uploaderRole: { type: 'string', enum: ['admin', 'company', 'notary', 'buyer', 'title-company'], example: 'company' },
+          comments: { type: 'string', example: 'Needs clearer scanback on page 4.' },
+          isLocked: { type: 'boolean', example: false },
+          s3Key: { type: 'string', example: 'documents/company/ORD-882190/user/closing.pdf' },
+          versions: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/DocumentVersion' },
+          },
+        },
+        required: ['id', 'fileName', 'orderNumber', 'status', 'isLocked', 'versions'],
+      },
+      DocumentVersion: {
+        type: 'object',
+        properties: {
+          versionId: { type: 'string', example: 'V2' },
+          fileName: { type: 'string', example: 'Closing_Disclosure_Final.pdf' },
+          fileSize: { type: 'number', example: 1258291 },
+          size: { type: 'string', example: '1.2 MB' },
+          mimeType: { type: 'string', example: 'application/pdf' },
+          uploadedAt: { type: 'string', format: 'date-time' },
+          uploaderRole: { type: 'string', enum: ['admin', 'company', 'notary'], example: 'notary' },
+        },
+        required: ['versionId', 'fileName', 'fileSize', 'mimeType', 'uploadedAt', 'uploaderRole'],
+      },
+      DocumentPayload: {
+        type: 'object',
+        properties: {
+          orderId: { type: 'string', example: '#ORD-882190' },
+          orderNumber: { type: 'string', example: '#ORD-882190' },
+          fileName: { type: 'string', example: 'scanback_signed_final.pdf' },
+          fileSize: { type: 'number', example: 4404019 },
+          size: { type: 'string', example: '4.2 MB' },
+          mimeType: { type: 'string', example: 'application/pdf' },
+          uploadedByName: { type: 'string', example: 'Sarah Miller' },
+          uploaderRole: { type: 'string', enum: ['admin', 'company', 'notary', 'buyer', 'title-company'], example: 'notary' },
+          status: { $ref: '#/components/schemas/DocumentStatus' },
+          comments: { type: 'string', example: 'Uploaded from notary scanback flow.' },
+          s3Key: { type: 'string', example: 'documents/notary/ORD-882190/user/scanback.pdf' },
+          requestUploadUrl: { type: 'boolean', example: true },
+        },
+        required: ['fileName'],
+      },
+      DocumentStatusPayload: {
+        type: 'object',
+        properties: {
+          status: { $ref: '#/components/schemas/DocumentStatus' },
+          comments: { type: 'string', example: 'Approved after compliance review.' },
+        },
+        required: ['status'],
+      },
+      DocumentVersionPayload: {
+        type: 'object',
+        properties: {
+          fileName: { type: 'string', example: 'scanback_signed_final_v2.pdf' },
+          fileSize: { type: 'number', example: 4450000 },
+          mimeType: { type: 'string', example: 'application/pdf' },
+          s3Key: { type: 'string', example: 'documents/notary/ORD-882190/user/scanback-v2.pdf' },
+          requestUploadUrl: { type: 'boolean', example: true },
+        },
+      },
+      RestoreDocumentVersionPayload: {
+        type: 'object',
+        properties: {
+          versionId: { type: 'string', example: 'V1' },
+        },
+        required: ['versionId'],
+      },
+      DocumentWriteResponse: {
+        allOf: [
+          { $ref: '#/components/schemas/SuccessEnvelope' },
+          {
+            type: 'object',
+            properties: {
+              data: {
+                type: 'object',
+                properties: {
+                  document: { $ref: '#/components/schemas/DocumentDetail' },
+                  uploadUrl: { type: 'string', nullable: true, example: 'https://bucket.s3.amazonaws.com/...' },
+                  uploadUrlError: { type: 'string', example: 'Upload URL could not be generated. Document metadata was saved.' },
+                },
+                required: ['document'],
+              },
+            },
+            required: ['data'],
+          },
+        ],
+      },
+      DocumentListResponse: {
+        allOf: [
+          { $ref: '#/components/schemas/SuccessEnvelope' },
+          {
+            type: 'object',
+            properties: {
+              data: {
+                type: 'array',
+                items: {
+                  oneOf: [
+                    { $ref: '#/components/schemas/DocumentRow' },
+                    { $ref: '#/components/schemas/DocumentRecord' },
+                    { $ref: '#/components/schemas/DocumentDetail' },
+                  ],
+                },
+              },
+            },
+            required: ['data'],
+          },
+        ],
+      },
+      DocumentSingleResponse: {
+        allOf: [
+          { $ref: '#/components/schemas/SuccessEnvelope' },
+          {
+            type: 'object',
+            properties: {
+              data: { $ref: '#/components/schemas/DocumentDetail' },
+            },
+            required: ['data'],
+          },
+        ],
+      },
+      DocumentVersionListResponse: {
+        allOf: [
+          { $ref: '#/components/schemas/SuccessEnvelope' },
+          {
+            type: 'object',
+            properties: {
+              data: {
+                type: 'array',
+                items: { $ref: '#/components/schemas/DocumentVersion' },
+              },
+            },
+            required: ['data'],
+          },
+        ],
+      },
+      DocumentSignedUrlResponse: {
+        allOf: [
+          { $ref: '#/components/schemas/SuccessEnvelope' },
+          {
+            type: 'object',
+            properties: {
+              data: {
+                type: 'object',
+                properties: {
+                  url: { type: 'string', example: 'https://bucket.s3.amazonaws.com/...' },
+                  expiresInSeconds: { type: 'number', example: 900 },
+                  fileName: { type: 'string', example: 'Closing_Disclosure_Final.pdf' },
+                  mode: { type: 'string', enum: ['download', 'preview'], example: 'download' },
+                },
+                required: ['url', 'expiresInSeconds', 'fileName', 'mode'],
+              },
+            },
+            required: ['data'],
+          },
+        ],
+      },
+      NotificationItem: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', example: '682afc5f8d249f890fad8801' },
+          title: { type: 'string', example: 'New Order Assigned' },
+          message: { type: 'string', example: 'You have been assigned to #ORD-90212.' },
+          time: { type: 'string', example: '2 min ago' },
+          read: { type: 'boolean', example: false },
+          type: { type: 'string', enum: ['order', 'document', 'user', 'system'], example: 'order' },
+          linkId: { type: 'string', example: '#ORD-90212' },
+          recipientRole: { type: 'string', enum: ['admin', 'company', 'notary'], example: 'notary' },
+        },
+        required: ['id', 'title', 'message', 'time', 'read', 'type', 'recipientRole'],
+      },
+      NotificationListResponse: {
+        allOf: [
+          { $ref: '#/components/schemas/SuccessEnvelope' },
+          {
+            type: 'object',
+            properties: {
+              data: {
+                type: 'array',
+                items: { $ref: '#/components/schemas/NotificationItem' },
+              },
+            },
+            required: ['data'],
+          },
+        ],
+      },
+      NotificationSingleResponse: {
+        allOf: [
+          { $ref: '#/components/schemas/SuccessEnvelope' },
+          {
+            type: 'object',
+            properties: {
+              data: { $ref: '#/components/schemas/NotificationItem' },
             },
             required: ['data'],
           },
@@ -2156,6 +2397,455 @@ export const openApiDocument = {
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/documents': {
+      get: {
+        tags: ['Documents'],
+        summary: 'List documents scoped to the authenticated role',
+        description:
+          'Admins receive dashboard tuple rows by default. Company and notary users receive portal document records scoped to owned or assigned orders.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            in: 'query',
+            name: 'status',
+            required: false,
+            schema: { $ref: '#/components/schemas/DocumentStatus' },
+          },
+          {
+            in: 'query',
+            name: 'search',
+            required: false,
+            schema: { type: 'string' },
+          },
+          {
+            in: 'query',
+            name: 'shape',
+            required: false,
+            schema: { type: 'string', enum: ['admin', 'portal', 'detail'] },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Documents fetched',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/DocumentListResponse' },
+              },
+            },
+          },
+          '401': {
+            description: 'Invalid or missing token',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+      post: {
+        tags: ['Documents'],
+        summary: 'Create document metadata and optionally return a signed S3 upload URL',
+        description:
+          'The database record is created even if S3 upload URL generation fails. Use requestUploadUrl=true when the frontend needs a direct upload URL.',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/DocumentPayload' },
+            },
+          },
+        },
+        responses: {
+          '201': {
+            description: 'Document metadata created',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/DocumentWriteResponse' },
+              },
+            },
+          },
+          '400': {
+            description: 'Validation failed',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+          '403': {
+            description: 'Role scope violation',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/documents/{id}': {
+      get: {
+        tags: ['Documents'],
+        summary: 'Fetch one document within caller scope',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            in: 'path',
+            name: 'id',
+            required: true,
+            schema: { type: 'string' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Document fetched',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/DocumentSingleResponse' },
+              },
+            },
+          },
+          '404': {
+            description: 'Document not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+      delete: {
+        tags: ['Documents'],
+        summary: 'Delete a document as an admin',
+        description: 'The database delete completes even if S3 object cleanup fails; S3 cleanup failure is logged.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            in: 'path',
+            name: 'id',
+            required: true,
+            schema: { type: 'string' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Document deleted',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/SuccessEnvelope' },
+              },
+            },
+          },
+          '403': {
+            description: 'Admin role required',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+          '404': {
+            description: 'Document not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/documents/{id}/status': {
+      patch: {
+        tags: ['Documents'],
+        summary: 'Review document status as an admin',
+        description: 'Approved or verified documents are locked from non-admin version uploads.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            in: 'path',
+            name: 'id',
+            required: true,
+            schema: { type: 'string' },
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/DocumentStatusPayload' },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Document status updated',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/DocumentSingleResponse' },
+              },
+            },
+          },
+          '403': {
+            description: 'Admin role required',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/documents/{id}/versions': {
+      get: {
+        tags: ['Documents'],
+        summary: 'List document versions within caller scope',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            in: 'path',
+            name: 'id',
+            required: true,
+            schema: { type: 'string' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Document versions fetched',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/DocumentVersionListResponse' },
+              },
+            },
+          },
+        },
+      },
+      post: {
+        tags: ['Documents'],
+        summary: 'Add a new document version and optionally return a signed S3 upload URL',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            in: 'path',
+            name: 'id',
+            required: true,
+            schema: { type: 'string' },
+          },
+        ],
+        requestBody: {
+          required: false,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/DocumentVersionPayload' },
+            },
+          },
+        },
+        responses: {
+          '201': {
+            description: 'Document version added',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/DocumentWriteResponse' },
+              },
+            },
+          },
+          '409': {
+            description: 'Document is locked',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/documents/{id}/restore-version': {
+      post: {
+        tags: ['Documents'],
+        summary: 'Restore a previous document version as an admin',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            in: 'path',
+            name: 'id',
+            required: true,
+            schema: { type: 'string' },
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/RestoreDocumentVersionPayload' },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Document version restored',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/DocumentSingleResponse' },
+              },
+            },
+          },
+          '403': {
+            description: 'Admin role required',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/documents/{id}/download-url': {
+      get: {
+        tags: ['Documents'],
+        summary: 'Generate a temporary document download URL',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            in: 'path',
+            name: 'id',
+            required: true,
+            schema: { type: 'string' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Download URL generated',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/DocumentSignedUrlResponse' },
+              },
+            },
+          },
+          '502': {
+            description: 'S3 signed URL generation failed',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/documents/{id}/preview-url': {
+      get: {
+        tags: ['Documents'],
+        summary: 'Generate a temporary inline preview URL',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            in: 'path',
+            name: 'id',
+            required: true,
+            schema: { type: 'string' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Preview URL generated',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/DocumentSignedUrlResponse' },
+              },
+            },
+          },
+          '502': {
+            description: 'S3 signed URL generation failed',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/notifications': {
+      get: {
+        tags: ['Notifications'],
+        summary: 'List notifications scoped to the authenticated session',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': {
+            description: 'Notifications fetched',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/NotificationListResponse' },
+              },
+            },
+          },
+          '401': {
+            description: 'Invalid or missing token',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/notifications/{id}/read': {
+      patch: {
+        tags: ['Notifications'],
+        summary: 'Mark one notification as read',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            in: 'path',
+            name: 'id',
+            required: true,
+            schema: { type: 'string' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Notification marked read',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/NotificationSingleResponse' },
+              },
+            },
+          },
+          '404': {
+            description: 'Notification not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/notifications/read-all': {
+      patch: {
+        tags: ['Notifications'],
+        summary: 'Mark all notifications read for the authenticated session',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': {
+            description: 'All notifications marked read',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/SuccessEnvelope' },
               },
             },
           },

@@ -2,6 +2,7 @@ import { StatusCodes } from 'http-status-codes';
 import { Types } from 'mongoose';
 
 import { HttpError } from '../../core/http-error';
+import { createNotificationSafely } from '../notifications/notifications.service';
 import { CompanyUser } from '../user/company-user.model';
 import { NotaryUser } from '../user/notary-user.model';
 import { IOrder, IOrderDocument, LoanType, NotaryPreference, Order, OrderPriority, OrderStatus } from './orders.model';
@@ -344,6 +345,29 @@ export const assignNotary = async (auth: AuthContext, id: string, payload: { not
   pushTimeline(order, `Notary ${notaryName} assigned`, 'slate');
 
   await order.save();
+
+  if (notaryId && Types.ObjectId.isValid(notaryId)) {
+    void createNotificationSafely({
+      recipientId: notaryId,
+      recipientRole: 'notary',
+      title: 'New Order Assigned',
+      message: `You have been assigned to ${order.orderNumber}.`,
+      type: 'order',
+      linkId: order.orderNumber,
+    });
+  }
+
+  if (order.companyId) {
+    void createNotificationSafely({
+      recipientId: order.companyId,
+      recipientRole: 'company',
+      title: 'Notary Assigned',
+      message: `A notary has been assigned to your order ${order.orderNumber}.`,
+      type: 'order',
+      linkId: order.orderNumber,
+    });
+  }
+
   return serializeOrderRow(order);
 };
 
