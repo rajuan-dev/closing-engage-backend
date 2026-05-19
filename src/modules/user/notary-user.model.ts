@@ -1,6 +1,7 @@
 import { Document, Schema, model } from 'mongoose';
 
 export interface INotaryUser extends Document {
+  publicId?: string;
   fullName: string;
   specialty: string;
   email: string;
@@ -14,6 +15,8 @@ export interface INotaryUser extends Document {
   passwordResetOtp?: string;
   passwordResetExpiresAt?: Date;
   passwordResetVerifiedAt?: Date;
+  passwordChangedBy?: 'admin' | 'user';
+  passwordChangedAt?: Date;
   sendInvite?: boolean;
   verify?: boolean;
   createdAt: Date;
@@ -22,11 +25,12 @@ export interface INotaryUser extends Document {
 
 const notaryUserSchema = new Schema<INotaryUser>(
   {
+    publicId: { type: String, unique: true, sparse: true, trim: true, uppercase: true },
     fullName: { type: String, required: true, trim: true },
     specialty: { type: String, required: true, default: 'Mobile Loan Signing Agent' },
     email: { type: String, required: true, unique: true, trim: true, lowercase: true },
     phone: { type: String, default: '' },
-    license: { type: String, required: true, trim: true },
+    license: { type: String, default: '', trim: true },
     status: { type: String, enum: ['Active', 'Inactive', 'Pending'], default: 'Active' },
     expiry: { type: String },
     serviceArea: { type: String },
@@ -35,6 +39,8 @@ const notaryUserSchema = new Schema<INotaryUser>(
     passwordResetOtp: { type: String },
     passwordResetExpiresAt: { type: Date },
     passwordResetVerifiedAt: { type: Date },
+    passwordChangedBy: { type: String, enum: ['admin', 'user'], default: 'admin' },
+    passwordChangedAt: { type: Date },
     sendInvite: { type: Boolean, default: false },
     verify: { type: Boolean, default: false },
   },

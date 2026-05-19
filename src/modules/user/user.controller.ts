@@ -22,10 +22,10 @@ const companySchema = z.object({
   contactPerson: z.string().trim().min(1, 'Contact person is required'),
   address: z.string().trim().optional(),
   contactEmail: z.string().trim().optional(),
-  userName: z.string().trim().optional(),
+  userName: z.string().trim().min(1, 'User name is required'),
   password: z.string().trim().optional(),
   sendInvite: z.boolean().optional(),
-  status: z.enum(['Active', 'Inactive', 'Pending']),
+  status: z.enum(['Active', 'Inactive', 'Pending']).default('Active'),
   verify: z.boolean().optional(),
 });
 
@@ -36,13 +36,13 @@ const notarySchema = z.object({
   specialty: z.string().trim().optional(),
   email: z.string().trim().email('Valid email is required'),
   phone: z.string().trim().default(''),
-  license: z.string().trim().min(1, 'License is required'),
+  license: z.string().trim().default(''),
   expiry: z.string().trim().optional(),
   serviceArea: z.string().trim().optional(),
-  userName: z.string().trim().optional(),
+  userName: z.string().trim().min(1, 'User name is required'),
   password: z.string().trim().optional(),
   sendInvite: z.boolean().optional(),
-  status: z.enum(['Active', 'Inactive', 'Pending']),
+  status: z.enum(['Active', 'Inactive', 'Pending']).default('Active'),
   verify: z.boolean().optional(),
 });
 

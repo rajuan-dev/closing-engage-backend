@@ -11,6 +11,7 @@ import {
   loginAdmin,
   loginCompany,
   loginNotary,
+  loginPortalUser,
   requestPasswordReset,
   resetPasswordWithOtp,
   updateAdminPassword,
@@ -122,6 +123,18 @@ export const loginNotaryUser = asyncHandler(async (req: Request, res: Response) 
     statusCode: StatusCodes.OK,
     success: true,
     message: 'Notary login successful',
+    data: result,
+  });
+});
+
+export const loginPortal = asyncHandler(async (req: Request, res: Response) => {
+  const { email, password } = loginSchema.parse(req.body);
+  const result = await loginPortalUser(email, password);
+
+  return sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: 'Portal login successful',
     data: result,
   });
 });

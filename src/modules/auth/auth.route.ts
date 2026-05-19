@@ -21,6 +21,7 @@ router.patch('/notary/profile', requireNotaryAuth, authController.updateNotaryAc
 router.patch('/notary/password', requireNotaryAuth, authController.changeNotaryPassword);
 
 router.post('/forgot-password', authController.forgotPassword);
+router.post('/portal/login', authController.loginPortal);
 router.post('/verify-otp', authController.verifyOtp);
 router.post('/reset-password', authController.resetPassword);
 

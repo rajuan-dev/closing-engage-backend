@@ -73,8 +73,21 @@ const formatDate = (date: Date): string =>
     year: 'numeric',
   });
 
+const buildCompanyPublicId = (company: ICompanyUser): string => {
+  const year = company.createdAt?.getFullYear?.() || new Date().getFullYear();
+  const digest = crypto.createHash('sha1').update(company._id.toString()).digest('hex').slice(0, 6).toUpperCase();
+  return `CE-COMP-${year}-${digest}`;
+};
+
+const buildNotaryPublicId = (notary: INotaryUser): string => {
+  const year = notary.createdAt?.getFullYear?.() || new Date().getFullYear();
+  const digest = crypto.createHash('sha1').update(notary._id.toString()).digest('hex').slice(0, 6).toUpperCase();
+  return `CE-NOT-${year}-${digest}`;
+};
+
 const sanitizeCompany = (company: ICompanyUser) => ({
   id: company._id.toString(),
+  publicId: company.publicId || buildCompanyPublicId(company),
   role: 'company' as const,
   initials: initialsFrom(company.companyName),
   color: 'bg-[#DCE7FF] text-[#3165CF]',
@@ -92,6 +105,7 @@ const sanitizeCompany = (company: ICompanyUser) => ({
 
 const sanitizeNotary = (notary: INotaryUser) => ({
   id: notary._id.toString(),
+  publicId: notary.publicId || buildNotaryPublicId(notary),
   role: 'notary' as const,
   initials: initialsFrom(notary.fullName),
   color: 'bg-[#FFE2D3] text-[#C66B33]',
@@ -329,7 +343,7 @@ export const loginCompany = async (email: string, password: string) => {
     $or: [{ businessEmail: normalizedEmail }, { contactEmail: normalizedEmail }, { userName: email.trim() }],
   });
 
-  if (!company || company.status === 'Inactive' || !company.passwordHash) {
+  if (!company || company.status !== 'Active' || !company.passwordHash) {
     throw new HttpError(StatusCodes.UNAUTHORIZED, 'Invalid email or password');
   }
 
@@ -351,7 +365,7 @@ export const loginNotary = async (email: string, password: string) => {
     $or: [{ email: normalizedEmail }, { userName: email.trim() }],
   });
 
-  if (!notary || notary.status === 'Inactive' || !notary.passwordHash) {
+  if (!notary || notary.status !== 'Active' || !notary.passwordHash) {
     throw new HttpError(StatusCodes.UNAUTHORIZED, 'Invalid email or password');
   }
 
@@ -386,7 +400,7 @@ export const verifyAuthToken = (token: string): AuthJwtPayload => {
 export const getCompanyById = async (id: string) => {
   const company = await CompanyUser.findById(id);
 
-  if (!company || company.status === 'Inactive') {
+  if (!company || company.status !== 'Active') {
     throw new HttpError(StatusCodes.UNAUTHORIZED, 'Company account not found');
   }
 
@@ -396,11 +410,43 @@ export const getCompanyById = async (id: string) => {
 export const getNotaryById = async (id: string) => {
   const notary = await NotaryUser.findById(id);
 
-  if (!notary || notary.status === 'Inactive') {
+  if (!notary || notary.status !== 'Active') {
     throw new HttpError(StatusCodes.UNAUTHORIZED, 'Notary account not found');
   }
 
   return sanitizeNotary(notary);
+};
+
+export const loginPortalUser = async (emailOrUserName: string, password: string) => {
+  try {
+    const companyResult = await loginCompany(emailOrUserName, password);
+    return {
+      token: companyResult.token,
+      role: 'company' as const,
+      user: companyResult.company,
+      redirectTo: '/company/dashboard',
+    };
+  } catch (error) {
+    if (!(error instanceof HttpError) || error.statusCode !== StatusCodes.UNAUTHORIZED) {
+      throw error;
+    }
+  }
+
+  try {
+    const notaryResult = await loginNotary(emailOrUserName, password);
+    return {
+      token: notaryResult.token,
+      role: 'notary' as const,
+      user: notaryResult.notary,
+      redirectTo: '/notary/dashboard',
+    };
+  } catch (error) {
+    if (!(error instanceof HttpError) || error.statusCode !== StatusCodes.UNAUTHORIZED) {
+      throw error;
+    }
+  }
+
+  throw new HttpError(StatusCodes.UNAUTHORIZED, 'Invalid email or password');
 };
 
 export const updateCompanyProfile = async (
@@ -416,7 +462,7 @@ export const updateCompanyProfile = async (
 ) => {
   const company = await CompanyUser.findById(id);
 
-  if (!company || company.status === 'Inactive') {
+  if (!company || company.status !== 'Active') {
     throw new HttpError(StatusCodes.UNAUTHORIZED, 'Company account not found');
   }
 
@@ -445,7 +491,7 @@ export const updateNotaryProfile = async (
 ) => {
   const notary = await NotaryUser.findById(id);
 
-  if (!notary || notary.status === 'Inactive') {
+  if (!notary || notary.status !== 'Active') {
     throw new HttpError(StatusCodes.UNAUTHORIZED, 'Notary account not found');
   }
 
@@ -464,7 +510,7 @@ export const updateNotaryProfile = async (
 export const updateCompanyPassword = async (id: string, currentPassword: string, newPassword: string): Promise<void> => {
   const company = await CompanyUser.findById(id);
 
-  if (!company || company.status === 'Inactive' || !company.passwordHash) {
+  if (!company || company.status !== 'Active' || !company.passwordHash) {
     throw new HttpError(StatusCodes.UNAUTHORIZED, 'Company account not found');
   }
 
@@ -475,13 +521,15 @@ export const updateCompanyPassword = async (id: string, currentPassword: string,
   }
 
   company.passwordHash = await bcrypt.hash(newPassword, 12);
+  company.passwordChangedBy = 'user';
+  company.passwordChangedAt = new Date();
   await company.save();
 };
 
 export const updateNotaryPassword = async (id: string, currentPassword: string, newPassword: string): Promise<void> => {
   const notary = await NotaryUser.findById(id);
 
-  if (!notary || notary.status === 'Inactive' || !notary.passwordHash) {
+  if (!notary || notary.status !== 'Active' || !notary.passwordHash) {
     throw new HttpError(StatusCodes.UNAUTHORIZED, 'Notary account not found');
   }
 
@@ -492,6 +540,8 @@ export const updateNotaryPassword = async (id: string, currentPassword: string, 
   }
 
   notary.passwordHash = await bcrypt.hash(newPassword, 12);
+  notary.passwordChangedBy = 'user';
+  notary.passwordChangedAt = new Date();
   await notary.save();
 };
 
@@ -556,6 +606,10 @@ export const resetPasswordWithOtp = async (
   }
 
   target.account.passwordHash = await bcrypt.hash(newPassword, 12);
+  if (target.role === 'company' || target.role === 'notary') {
+    target.account.passwordChangedBy = 'user';
+    target.account.passwordChangedAt = new Date();
+  }
   target.account.passwordResetOtp = undefined;
   target.account.passwordResetExpiresAt = undefined;
   target.account.passwordResetVerifiedAt = undefined;

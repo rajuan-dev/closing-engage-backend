@@ -170,6 +170,29 @@ export const openApiDocument = {
           },
         ],
       },
+      PortalLoginResponse: {
+        allOf: [
+          { $ref: '#/components/schemas/SuccessEnvelope' },
+          {
+            type: 'object',
+            properties: {
+              data: {
+                type: 'object',
+                properties: {
+                  token: { type: 'string', example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' },
+                  role: { type: 'string', enum: ['company', 'notary'], example: 'company' },
+                  user: {
+                    oneOf: [{ $ref: '#/components/schemas/CompanyUser' }, { $ref: '#/components/schemas/NotaryUser' }],
+                  },
+                  redirectTo: { type: 'string', enum: ['/company/dashboard', '/notary/dashboard'], example: '/company/dashboard' },
+                },
+                required: ['token', 'role', 'user', 'redirectTo'],
+              },
+            },
+            required: ['data'],
+          },
+        ],
+      },
       AdminSessionResponse: {
         allOf: [
           { $ref: '#/components/schemas/SuccessEnvelope' },
@@ -429,6 +452,11 @@ export const openApiDocument = {
         type: 'object',
         properties: {
           id: { type: 'string', example: '682afc5f8d249f890fad5501' },
+          publicId: {
+            type: 'string',
+            example: 'CE-COMP-2026-A1B2C3',
+            description: 'Readable public company identifier for admin display and search. MongoDB id remains internal for API mutations.',
+          },
           initials: { type: 'string', example: 'ES' },
           color: { type: 'string', example: 'bg-[#DCE7FF] text-[#3165CF]' },
           companyName: { type: 'string', example: 'Estate Flux Title' },
@@ -445,6 +473,7 @@ export const openApiDocument = {
         },
         required: [
           'id',
+          'publicId',
           'initials',
           'color',
           'companyName',
@@ -475,7 +504,7 @@ export const openApiDocument = {
           status: { type: 'string', enum: ['Active', 'Inactive', 'Pending'], example: 'Active' },
           verify: { type: 'boolean', example: true },
         },
-        required: ['companyName', 'businessEmail', 'contactPerson', 'status'],
+        required: ['companyName', 'businessEmail', 'contactPerson', 'userName'],
       },
       CompanyUserUpdatePayload: {
         type: 'object',
@@ -524,13 +553,18 @@ export const openApiDocument = {
         type: 'object',
         properties: {
           id: { type: 'string', example: '682afc5f8d249f890fad6601' },
+          publicId: {
+            type: 'string',
+            example: 'CE-NOT-2026-A1B2C3',
+            description: 'Readable public notary identifier for admin display and search. MongoDB id remains internal for API mutations.',
+          },
           initials: { type: 'string', example: 'JB' },
           color: { type: 'string', example: 'bg-[#FFE2D3] text-[#C66B33]' },
           fullName: { type: 'string', example: 'Jordan Blake' },
           specialty: { type: 'string', example: 'Mobile Loan Signing Agent' },
           email: { type: 'string', format: 'email', example: 'jordan@example.com' },
           phone: { type: 'string', example: '+1 (555) 200-1100' },
-          license: { type: 'string', example: 'TX-99541' },
+          license: { type: 'string', example: 'TX-99541', default: '' },
           status: { type: 'string', enum: ['Active', 'Inactive', 'Pending'], example: 'Active' },
           createdDate: { type: 'string', example: 'May 19, 2026' },
           expiry: { type: 'string', example: '2027-08-31' },
@@ -541,6 +575,7 @@ export const openApiDocument = {
         },
         required: [
           'id',
+          'publicId',
           'initials',
           'color',
           'fullName',
@@ -573,7 +608,7 @@ export const openApiDocument = {
           status: { type: 'string', enum: ['Active', 'Inactive', 'Pending'], example: 'Active' },
           verify: { type: 'boolean', example: true },
         },
-        required: ['fullName', 'email', 'license', 'status'],
+        required: ['fullName', 'email', 'userName'],
       },
       NotaryUserUpdatePayload: {
         type: 'object',
@@ -1345,6 +1380,40 @@ export const openApiDocument = {
           },
           '401': {
             description: 'Invalid email or password',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/auth/portal/login': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Authenticate a company or notary user from the shared website login page',
+        description:
+          'Only active admin-created company and notary accounts with a stored password hash can authenticate. The response includes the role-specific dashboard redirect path.',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/AdminLoginRequest' },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Portal login successful',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/PortalLoginResponse' },
+              },
+            },
+          },
+          '401': {
+            description: 'Invalid email or password, inactive account, or account not created by admin',
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ErrorEnvelope' },

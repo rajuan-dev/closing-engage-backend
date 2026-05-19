@@ -1,6 +1,7 @@
 import { Document, Schema, model } from 'mongoose';
 
 export interface ICompanyUser extends Document {
+  publicId?: string;
   companyName: string;
   contactPerson: string;
   businessEmail: string;
@@ -13,6 +14,8 @@ export interface ICompanyUser extends Document {
   passwordResetOtp?: string;
   passwordResetExpiresAt?: Date;
   passwordResetVerifiedAt?: Date;
+  passwordChangedBy?: 'admin' | 'user';
+  passwordChangedAt?: Date;
   sendInvite?: boolean;
   verify?: boolean;
   createdAt: Date;
@@ -21,6 +24,7 @@ export interface ICompanyUser extends Document {
 
 const companyUserSchema = new Schema<ICompanyUser>(
   {
+    publicId: { type: String, unique: true, sparse: true, trim: true, uppercase: true },
     companyName: { type: String, required: true, trim: true },
     contactPerson: { type: String, required: true, trim: true },
     businessEmail: { type: String, required: true, unique: true, trim: true, lowercase: true },
@@ -33,6 +37,8 @@ const companyUserSchema = new Schema<ICompanyUser>(
     passwordResetOtp: { type: String },
     passwordResetExpiresAt: { type: Date },
     passwordResetVerifiedAt: { type: Date },
+    passwordChangedBy: { type: String, enum: ['admin', 'user'], default: 'admin' },
+    passwordChangedAt: { type: Date },
     sendInvite: { type: Boolean, default: false },
     verify: { type: Boolean, default: false },
   },

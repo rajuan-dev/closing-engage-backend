@@ -6,6 +6,7 @@ import { env } from '../../config/env';
 import { HttpError } from '../../core/http-error';
 import { logger } from '../../core/logger';
 import { sendEmail } from '../email/email.service';
+import { notifyAdminsSafely } from '../notifications/notifications.service';
 import { CompanyUser, ICompanyUser } from './company-user.model';
 import { INotaryUser, NotaryUser } from './notary-user.model';
 
@@ -21,9 +22,37 @@ const notaryColor = 'bg-[#FFE2D3] text-[#C66B33]';
 
 const initialsFrom = (value: string) => value.trim().slice(0, 2).toUpperCase();
 const generateTemporaryPassword = (): string => crypto.randomBytes(9).toString('base64url');
+const buildCompanyPublicId = (company: ICompanyUser): string => {
+  const year = company.createdAt?.getFullYear?.() || new Date().getFullYear();
+  const digest = crypto.createHash('sha1').update(company._id.toString()).digest('hex').slice(0, 6).toUpperCase();
+  return `CE-COMP-${year}-${digest}`;
+};
+
+const buildNotaryPublicId = (notary: INotaryUser): string => {
+  const year = notary.createdAt?.getFullYear?.() || new Date().getFullYear();
+  const digest = crypto.createHash('sha1').update(notary._id.toString()).digest('hex').slice(0, 6).toUpperCase();
+  return `CE-NOT-${year}-${digest}`;
+};
+
+const ensureCompanyPublicId = async (company: ICompanyUser): Promise<ICompanyUser> => {
+  if (company.publicId) return company;
+
+  company.publicId = buildCompanyPublicId(company);
+  await company.save();
+  return company;
+};
+
+const ensureNotaryPublicId = async (notary: INotaryUser): Promise<INotaryUser> => {
+  if (notary.publicId) return notary;
+
+  notary.publicId = buildNotaryPublicId(notary);
+  await notary.save();
+  return notary;
+};
 
 const serializeCompanyUser = (company: ICompanyUser) => ({
   id: company._id.toString(),
+  publicId: company.publicId || buildCompanyPublicId(company),
   initials: initialsFrom(company.companyName),
   color: companyColor,
   companyName: company.companyName,
@@ -37,10 +66,17 @@ const serializeCompanyUser = (company: ICompanyUser) => ({
   userName: company.userName ?? '',
   sendInvite: company.sendInvite ?? false,
   verify: company.verify ?? false,
+  passwordChangedBy: company.passwordChangedBy ?? 'admin',
+  passwordChangedAt: company.passwordChangedAt?.toISOString() ?? company.createdAt.toISOString(),
+  passwordStatus:
+    company.passwordChangedBy === 'user'
+      ? 'Password changed by user'
+      : 'Password is not reset or changed by user',
 });
 
 const serializeNotaryUser = (notary: INotaryUser) => ({
   id: notary._id.toString(),
+  publicId: notary.publicId || buildNotaryPublicId(notary),
   initials: initialsFrom(notary.fullName),
   color: notaryColor,
   fullName: notary.fullName,
@@ -55,14 +91,21 @@ const serializeNotaryUser = (notary: INotaryUser) => ({
   userName: notary.userName ?? '',
   sendInvite: notary.sendInvite ?? false,
   verify: notary.verify ?? false,
+  passwordChangedBy: notary.passwordChangedBy ?? 'admin',
+  passwordChangedAt: notary.passwordChangedAt?.toISOString() ?? notary.createdAt.toISOString(),
+  passwordStatus:
+    notary.passwordChangedBy === 'user'
+      ? 'Password changed by user'
+      : 'Password is not reset or changed by user',
 });
 
 const sendCompanyInviteEmail = async (company: ReturnType<typeof serializeCompanyUser>, password?: string) => {
   const targetEmail = company.contactEmail || company.businessEmail;
   const loginUrl = `${env.WEBSITE_BASE_URL}/login`;
 
-  await sendEmail({
+  return sendEmail({
     to: targetEmail,
+    bcc: env.ADMIN_SEED_EMAIL,
     subject: 'Your Closing Engage company account is ready',
     html: `
       <h2>Welcome to Closing Engage</h2>
@@ -87,8 +130,9 @@ const sendCompanyInviteEmail = async (company: ReturnType<typeof serializeCompan
 const sendNotaryInviteEmail = async (notary: ReturnType<typeof serializeNotaryUser>, password?: string) => {
   const loginUrl = `${env.WEBSITE_BASE_URL}/login`;
 
-  await sendEmail({
+  return sendEmail({
     to: notary.email,
+    bcc: env.ADMIN_SEED_EMAIL,
     subject: 'Your Closing Engage notary account is ready',
     html: `
       <h2>Welcome to Closing Engage</h2>
@@ -115,7 +159,15 @@ const safelySendCompanyInviteEmail = async (
   password?: string,
 ): Promise<void> => {
   try {
-    await sendCompanyInviteEmail(company, password);
+    const result = await sendCompanyInviteEmail(company, password);
+    void notifyAdminsSafely({
+      title: result.delivered ? 'Company Invite Email Sent' : 'Company Invite Email Skipped',
+      message: result.delivered
+        ? `Invitation sent to ${company.contactEmail || company.businessEmail}. A copy was BCC'd to ${env.ADMIN_SEED_EMAIL}.`
+        : `Company user ${company.companyName} was created, but email delivery was skipped because Resend is not configured.`,
+      type: 'user',
+      linkId: company.id,
+    });
   } catch (error) {
     logger.error(
       {
@@ -126,6 +178,12 @@ const safelySendCompanyInviteEmail = async (
       },
       'Company user persisted, but invite email failed',
     );
+    void notifyAdminsSafely({
+      title: 'Company Invite Email Failed',
+      message: `Company user ${company.companyName} was created, but invitation email to ${company.contactEmail || company.businessEmail} failed.`,
+      type: 'user',
+      linkId: company.id,
+    });
   }
 };
 
@@ -134,7 +192,15 @@ const safelySendNotaryInviteEmail = async (
   password?: string,
 ): Promise<void> => {
   try {
-    await sendNotaryInviteEmail(notary, password);
+    const result = await sendNotaryInviteEmail(notary, password);
+    void notifyAdminsSafely({
+      title: result.delivered ? 'Notary Invite Email Sent' : 'Notary Invite Email Skipped',
+      message: result.delivered
+        ? `Invitation sent to ${notary.email}. A copy was BCC'd to ${env.ADMIN_SEED_EMAIL}.`
+        : `Notary user ${notary.fullName} was created, but email delivery was skipped because Resend is not configured.`,
+      type: 'user',
+      linkId: notary.id,
+    });
   } catch (error) {
     logger.error(
       {
@@ -145,12 +211,19 @@ const safelySendNotaryInviteEmail = async (
       },
       'Notary user persisted, but invite email failed',
     );
+    void notifyAdminsSafely({
+      title: 'Notary Invite Email Failed',
+      message: `Notary user ${notary.fullName} was created, but invitation email to ${notary.email} failed.`,
+      type: 'user',
+      linkId: notary.id,
+    });
   }
 };
 
 export const listCompanies = async () => {
   const companies = await CompanyUser.find().sort({ createdAt: -1 });
-  return companies.map(serializeCompanyUser);
+  const companiesWithPublicIds = await Promise.all(companies.map(ensureCompanyPublicId));
+  return companiesWithPublicIds.map(serializeCompanyUser);
 };
 
 export const createCompany = async (payload: {
@@ -169,12 +242,16 @@ export const createCompany = async (payload: {
   const temporaryPassword = payload.password || generateTemporaryPassword();
   const passwordHash = await bcrypt.hash(temporaryPassword, 12);
 
-  const company = await CompanyUser.create({
+  const company = new CompanyUser({
     ...payload,
     businessEmail: payload.businessEmail.trim().toLowerCase(),
     contactEmail: payload.contactEmail?.trim().toLowerCase(),
     passwordHash,
+    passwordChangedBy: 'admin',
+    passwordChangedAt: new Date(),
   });
+  company.publicId = buildCompanyPublicId(company);
+  await company.save();
 
   const serialized = serializeCompanyUser(company);
 
@@ -217,9 +294,14 @@ export const updateCompany = async (
   if (payload.sendInvite !== undefined) company.sendInvite = payload.sendInvite;
   if (payload.status !== undefined) company.status = payload.status;
   if (payload.verify !== undefined) company.verify = payload.verify;
-  if (payload.password) company.passwordHash = await bcrypt.hash(payload.password, 12);
+  if (payload.password) {
+    company.passwordHash = await bcrypt.hash(payload.password, 12);
+    company.passwordChangedBy = 'admin';
+    company.passwordChangedAt = new Date();
+  }
 
   await company.save();
+  await ensureCompanyPublicId(company);
 
   const serialized = serializeCompanyUser(company);
 
@@ -239,7 +321,8 @@ export const deleteCompany = async (id: string): Promise<void> => {
 
 export const listNotaries = async () => {
   const notaries = await NotaryUser.find().sort({ createdAt: -1 });
-  return notaries.map(serializeNotaryUser);
+  const notariesWithPublicIds = await Promise.all(notaries.map(ensureNotaryPublicId));
+  return notariesWithPublicIds.map(serializeNotaryUser);
 };
 
 export const createNotary = async (payload: {
@@ -259,12 +342,16 @@ export const createNotary = async (payload: {
   const temporaryPassword = payload.password || generateTemporaryPassword();
   const passwordHash = await bcrypt.hash(temporaryPassword, 12);
 
-  const notary = await NotaryUser.create({
+  const notary = new NotaryUser({
     ...payload,
     specialty: payload.specialty || 'Mobile Loan Signing Agent',
     email: payload.email.trim().toLowerCase(),
     passwordHash,
+    passwordChangedBy: 'admin',
+    passwordChangedAt: new Date(),
   });
+  notary.publicId = buildNotaryPublicId(notary);
+  await notary.save();
 
   const serialized = serializeNotaryUser(notary);
 
@@ -309,9 +396,14 @@ export const updateNotary = async (
   if (payload.sendInvite !== undefined) notary.sendInvite = payload.sendInvite;
   if (payload.status !== undefined) notary.status = payload.status;
   if (payload.verify !== undefined) notary.verify = payload.verify;
-  if (payload.password) notary.passwordHash = await bcrypt.hash(payload.password, 12);
+  if (payload.password) {
+    notary.passwordHash = await bcrypt.hash(payload.password, 12);
+    notary.passwordChangedBy = 'admin';
+    notary.passwordChangedAt = new Date();
+  }
 
   await notary.save();
+  await ensureNotaryPublicId(notary);
 
   const serialized = serializeNotaryUser(notary);
 
