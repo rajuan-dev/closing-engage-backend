@@ -15,6 +15,9 @@ const envSchema = z.object({
   AWS_ACCESS_KEY_ID: z.string().trim().min(1, 'AWS_ACCESS_KEY_ID is required'),
   AWS_SECRET_ACCESS_KEY: z.string().trim().min(1, 'AWS_SECRET_ACCESS_KEY is required'),
   AWS_S3_BUCKET: z.string().trim().min(1, 'AWS_S3_BUCKET is required'),
+  RESEND_API_KEY: z.string().trim().optional(),
+  RESEND_FROM_EMAIL: z.string().trim().optional(),
+  WEBSITE_BASE_URL: z.string().trim().default('http://localhost:5173'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 });
 
