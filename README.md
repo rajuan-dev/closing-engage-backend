@@ -32,6 +32,11 @@ CORS_ORIGIN=http://localhost:5173,http://localhost:3000
 LOG_LEVEL=info
 ```
 
+## API Documentation
+
+- Swagger UI: `http://localhost:5000/docs`
+- OpenAPI JSON: `http://localhost:5000/docs.json`
+
 ## Available Scripts
 
 - `npm run dev` - Run the development server with auto-reload
