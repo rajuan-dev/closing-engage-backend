@@ -24,6 +24,7 @@ const companySchema = z.object({
   contactEmail: z.string().trim().optional(),
   userName: z.string().trim().min(1, 'User name is required'),
   password: z.string().trim().optional(),
+  avatarUrl: z.string().trim().optional(),
   sendInvite: z.boolean().optional(),
   status: z.enum(['Active', 'Inactive', 'Pending']).default('Active'),
   verify: z.boolean().optional(),

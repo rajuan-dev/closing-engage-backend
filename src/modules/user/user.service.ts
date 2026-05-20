@@ -276,6 +276,7 @@ export const createCompany = async (payload: {
   contactEmail?: string;
   userName?: string;
   password?: string;
+  avatarUrl?: string;
   sendInvite?: boolean;
   status: 'Active' | 'Inactive' | 'Pending';
   verify?: boolean;
@@ -315,6 +316,7 @@ export const updateCompany = async (
     contactEmail?: string;
     userName?: string;
     password?: string;
+    avatarUrl?: string;
     sendInvite?: boolean;
     status: 'Active' | 'Inactive' | 'Pending';
     verify?: boolean;
@@ -333,6 +335,7 @@ export const updateCompany = async (
   if (payload.address !== undefined) company.address = payload.address;
   if (payload.contactEmail !== undefined) company.contactEmail = payload.contactEmail.trim().toLowerCase();
   if (payload.userName !== undefined) company.userName = payload.userName;
+  if (payload.avatarUrl !== undefined) company.avatarUrl = payload.avatarUrl;
   if (payload.sendInvite !== undefined) company.sendInvite = payload.sendInvite;
   if (payload.status !== undefined) company.status = payload.status;
   if (payload.verify !== undefined) company.verify = payload.verify;
