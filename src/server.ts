@@ -6,8 +6,10 @@ import { connectDatabase } from './config/database';
 import { env } from './config/env';
 import { logger } from './core/logger';
 import { ensureSeedAdmin } from './modules/auth/auth.service';
+import { initializeCommunicationSocket } from './modules/communications/communications.socket';
 
 const server = http.createServer(app);
+initializeCommunicationSocket(server);
 
 const isBackendAlreadyRunning = async (): Promise<boolean> =>
   new Promise((resolve) => {

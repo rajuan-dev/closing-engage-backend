@@ -28,6 +28,7 @@ export const openApiDocument = {
     { name: 'Orders', description: 'Admin order creation, listing, assignment, status, and timeline endpoints' },
     { name: 'Documents', description: 'Role-scoped document metadata, review, versioning, and signed URL endpoints' },
     { name: 'Notifications', description: 'Role-scoped notification inbox and read-state endpoints' },
+    { name: 'Communications', description: 'Order-scoped real-time admin and assigned-notary messaging endpoints' },
     ...generatedTags,
   ],
   components: {
@@ -1143,6 +1144,125 @@ export const openApiDocument = {
             type: 'object',
             properties: {
               data: { $ref: '#/components/schemas/NotificationItem' },
+            },
+            required: ['data'],
+          },
+        ],
+      },
+      CommunicationThread: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', example: '682afc5f8d249f890fad2221' },
+          orderNumber: { type: 'string', example: '#ORD-85856' },
+          companyId: { type: 'string', example: '682afc5f8d249f890fad2210' },
+          notaryId: { type: 'string', example: '682afc5f8d249f890fad2230' },
+          lastMessage: { type: 'string', example: 'Please review the corrected scanback.' },
+          lastMessageAt: { type: 'string', format: 'date-time' },
+          lastSenderRole: { type: 'string', enum: ['admin', 'notary', ''], example: 'notary' },
+          unreadCount: { type: 'integer', minimum: 0, example: 2 },
+        },
+        required: ['id', 'orderNumber', 'companyId', 'notaryId', 'lastMessage', 'lastMessageAt', 'lastSenderRole', 'unreadCount'],
+      },
+      CommunicationMessage: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', example: '682afc5f8d249f890fad2222' },
+          threadId: { type: 'string', example: '682afc5f8d249f890fad2221' },
+          orderNumber: { type: 'string', example: '#ORD-85856' },
+          senderId: { type: 'string', example: '682afc5f8d249f890fad2230' },
+          senderRole: { type: 'string', enum: ['admin', 'notary'], example: 'notary' },
+          senderName: { type: 'string', example: 'notary 1' },
+          body: { type: 'string', example: 'Scanbacks are uploaded and ready for review.' },
+          createdAt: { type: 'string', format: 'date-time' },
+          time: { type: 'string', example: 'May 20, 11:30 AM' },
+          readByAdmin: { type: 'boolean', example: false },
+          readByNotary: { type: 'boolean', example: true },
+        },
+        required: [
+          'id',
+          'threadId',
+          'orderNumber',
+          'senderId',
+          'senderRole',
+          'senderName',
+          'body',
+          'createdAt',
+          'time',
+          'readByAdmin',
+          'readByNotary',
+        ],
+      },
+      CommunicationConversation: {
+        type: 'object',
+        properties: {
+          thread: { $ref: '#/components/schemas/CommunicationThread' },
+          messages: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/CommunicationMessage' },
+          },
+        },
+        required: ['thread', 'messages'],
+      },
+      CommunicationMessageRequest: {
+        type: 'object',
+        properties: {
+          body: { type: 'string', minLength: 1, maxLength: 4000, example: 'Can you confirm page 4 was corrected?' },
+        },
+        required: ['body'],
+      },
+      CommunicationThreadListResponse: {
+        allOf: [
+          { $ref: '#/components/schemas/SuccessEnvelope' },
+          {
+            type: 'object',
+            properties: {
+              data: {
+                type: 'array',
+                items: { $ref: '#/components/schemas/CommunicationThread' },
+              },
+            },
+            required: ['data'],
+          },
+        ],
+      },
+      CommunicationThreadResponse: {
+        allOf: [
+          { $ref: '#/components/schemas/SuccessEnvelope' },
+          {
+            type: 'object',
+            properties: {
+              data: { $ref: '#/components/schemas/CommunicationThread' },
+            },
+            required: ['data'],
+          },
+        ],
+      },
+      CommunicationConversationResponse: {
+        allOf: [
+          { $ref: '#/components/schemas/SuccessEnvelope' },
+          {
+            type: 'object',
+            properties: {
+              data: { $ref: '#/components/schemas/CommunicationConversation' },
+            },
+            required: ['data'],
+          },
+        ],
+      },
+      CommunicationMessageResponse: {
+        allOf: [
+          { $ref: '#/components/schemas/SuccessEnvelope' },
+          {
+            type: 'object',
+            properties: {
+              data: {
+                type: 'object',
+                properties: {
+                  thread: { $ref: '#/components/schemas/CommunicationThread' },
+                  message: { $ref: '#/components/schemas/CommunicationMessage' },
+                },
+                required: ['thread', 'message'],
+              },
             },
             required: ['data'],
           },
@@ -3268,6 +3388,187 @@ export const openApiDocument = {
           },
           '502': {
             description: 'Secure document retrieval failed',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/communications/threads': {
+      get: {
+        tags: ['Communications'],
+        summary: 'List order chat threads for the authenticated admin or notary',
+        description:
+          'Admins receive all order chat threads. Notaries receive only threads for orders assigned to them. Company users are not allowed to use this admin-notary channel.',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': {
+            description: 'Communication threads fetched',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/CommunicationThreadListResponse' },
+              },
+            },
+          },
+          '401': {
+            description: 'Invalid or missing token',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+          '403': {
+            description: 'Role is not allowed to use order chat',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/communications/orders/{orderNumber}/thread': {
+      get: {
+        tags: ['Communications'],
+        summary: 'Get or create the chat thread for one order',
+        description:
+          'Creates a single persistent order-scoped thread if it does not already exist. Notary access is limited to assigned orders.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            in: 'path',
+            name: 'orderNumber',
+            required: true,
+            schema: { type: 'string' },
+            example: '#ORD-85856',
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Communication thread fetched',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/CommunicationThreadResponse' },
+              },
+            },
+          },
+          '403': {
+            description: 'Order is outside the notary assignment scope or role is not allowed',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+          '404': {
+            description: 'Order not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/communications/orders/{orderNumber}/messages': {
+      get: {
+        tags: ['Communications'],
+        summary: 'Fetch message history for one order chat',
+        description:
+          'Returns the thread and chronological messages. Fetching marks messages as read for the authenticated role.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            in: 'path',
+            name: 'orderNumber',
+            required: true,
+            schema: { type: 'string' },
+            example: '#ORD-85856',
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Communication messages fetched',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/CommunicationConversationResponse' },
+              },
+            },
+          },
+          '403': {
+            description: 'Order is outside the notary assignment scope or role is not allowed',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+          '404': {
+            description: 'Order not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+      post: {
+        tags: ['Communications'],
+        summary: 'Send a message in one order chat',
+        description:
+          'Persists a message, updates thread metadata, sends an in-app notification to the opposite side, and emits the message to connected Socket.IO clients in the order thread room.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            in: 'path',
+            name: 'orderNumber',
+            required: true,
+            schema: { type: 'string' },
+            example: '#ORD-85856',
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/CommunicationMessageRequest' },
+            },
+          },
+        },
+        responses: {
+          '201': {
+            description: 'Communication message sent',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/CommunicationMessageResponse' },
+              },
+            },
+          },
+          '400': {
+            description: 'Message body is empty or too long',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+          '403': {
+            description: 'Order is outside the notary assignment scope or role is not allowed',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+          '404': {
+            description: 'Order not found',
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ErrorEnvelope' },
