@@ -45,6 +45,10 @@ export const initializeCommunicationSocket = (server: http.Server) => {
 
   io.on('connection', (socket) => {
     const auth = socket.data.auth as CommunicationAuth;
+    socket.join(`user:${auth.role}:${auth.id}`);
+    if (auth.role === 'admin') {
+      socket.join('role:admin');
+    }
 
     socket.on('communications:join-order', async (orderNumber: string, ack?: (payload: unknown) => void) => {
       try {
@@ -65,7 +69,7 @@ export const initializeCommunicationSocket = (server: http.Server) => {
             orderNumber: payload.orderNumber ?? '',
             body: payload.body ?? '',
           });
-          io.to(`thread:${result.thread.id}`).emit('communications:message', result);
+          emitCommunicationMessage(result);
           ack?.({ success: true, data: result });
         } catch (error) {
           logger.warn({ err: error, role: auth.role, userId: auth.id }, 'Socket send order message failed');
@@ -82,5 +86,9 @@ export const initializeCommunicationSocket = (server: http.Server) => {
 export const getCommunicationSocket = () => ioInstance;
 
 export const emitCommunicationMessage = (result: Awaited<ReturnType<typeof sendMessage>>) => {
-  ioInstance?.to(`thread:${result.thread.id}`).emit('communications:message', result);
+  let target = ioInstance?.to(`thread:${result.thread.id}`).to('role:admin');
+  if (result.thread.notaryId) {
+    target = target?.to(`user:notary:${result.thread.notaryId}`);
+  }
+  target?.emit('communications:message', result);
 };
