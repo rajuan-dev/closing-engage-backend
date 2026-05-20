@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { z } from 'zod';
 
+import { HttpError } from '../../core/http-error';
 import { sendResponse } from '../../core/response';
 import { asyncHandler } from '../../utils/async-handler';
 import { documentStatuses, uploaderRoles } from './documents.model';
@@ -10,10 +11,13 @@ import {
   createDocument,
   deleteDocument,
   getDocument,
+  getDocumentFile,
   getDocumentSignedUrl,
   listDocumentVersions,
   listDocuments,
+  resubmitDocument,
   restoreDocumentVersion,
+  uploadDocumentBinary,
   updateDocumentStatus,
 } from './documents.service';
 
@@ -27,6 +31,7 @@ const listQuerySchema = z.object({
   status: z.enum(documentStatuses).optional(),
   search: z.string().trim().optional(),
   shape: z.enum(['admin', 'portal', 'detail']).optional(),
+  mode: z.enum(['preview', 'download']).optional(),
 });
 
 const documentPayloadSchema = z.object({
@@ -57,6 +62,19 @@ const versionPayloadSchema = z.object({
   requestUploadUrl: z.boolean().optional(),
 });
 
+const uploadDocumentQuerySchema = z.object({
+  orderId: z.string().trim().optional(),
+  orderNumber: z.string().trim().optional(),
+  fileName: nonEmpty,
+  fileSize: z.coerce.number().min(0).optional(),
+  size: z.string().trim().optional(),
+  mimeType: z.string().trim().optional(),
+  uploadedByName: z.string().trim().optional(),
+  uploaderRole: z.enum(uploaderRoles).optional(),
+  status: z.enum(documentStatuses).optional(),
+  comments: z.string().trim().optional(),
+});
+
 const restoreVersionPayloadSchema = z.object({
   versionId: nonEmpty,
 });
@@ -80,6 +98,22 @@ export const postDocument = asyncHandler(async (req: Request, res: Response) => 
     statusCode: StatusCodes.CREATED,
     success: true,
     message: 'Document metadata created successfully',
+    data: document,
+  });
+});
+
+export const postDocumentUpload = asyncHandler(async (req: Request, res: Response) => {
+  const payload = uploadDocumentQuerySchema.parse(req.query);
+  if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+    throw new HttpError(StatusCodes.BAD_REQUEST, 'Document upload body is required');
+  }
+
+  const document = await uploadDocumentBinary(req.auth!, payload, req.body);
+
+  return sendResponse(res, {
+    statusCode: StatusCodes.CREATED,
+    success: true,
+    message: 'Document uploaded successfully',
     data: document,
   });
 });
@@ -113,6 +147,17 @@ export const patchDocumentStatus = asyncHandler(async (req: Request, res: Respon
   return sendResponse(res, {
     success: true,
     message: 'Document status updated successfully',
+    data: document,
+  });
+});
+
+export const postResubmitDocument = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = idParamsSchema.parse(req.params);
+  const document = await resubmitDocument(req.auth!, id);
+
+  return sendResponse(res, {
+    success: true,
+    message: 'Document resubmitted successfully',
     data: document,
   });
 });
@@ -173,4 +218,15 @@ export const getPreviewUrl = asyncHandler(async (req: Request, res: Response) =>
     message: 'Document preview URL generated successfully',
     data: result,
   });
+});
+
+export const getDocumentContent = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = idParamsSchema.parse(req.params);
+  const { mode } = listQuerySchema.parse(req.query);
+  const result = await getDocumentFile(req.auth!, id, mode || 'preview');
+
+  res.setHeader('Content-Type', result.contentType);
+  res.setHeader('Content-Length', String(result.contentLength));
+  res.setHeader('Content-Disposition', `${result.disposition}; filename="${result.fileName}"`);
+  res.send(result.body);
 });

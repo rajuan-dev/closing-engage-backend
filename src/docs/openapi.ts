@@ -735,9 +735,14 @@ export const openApiDocument = {
         type: 'object',
         properties: {
           name: { type: 'string', example: 'Closing_Package.pdf' },
+          fileName: { type: 'string', example: 'Closing_Package.pdf' },
           meta: { type: 'string', example: '4.2 MB • Uploaded 2h ago' },
+          size: { type: 'string', example: '4.2 MB' },
+          fileSize: { type: 'number', example: 4404019 },
+          mimeType: { type: 'string', example: 'application/pdf' },
         },
-        required: ['name', 'meta'],
+        description:
+          'Document metadata submitted with an order. Use either name or fileName. Binary upload can be handled separately through document upload URLs.',
       },
       OrderPayload: {
         type: 'object',
@@ -747,12 +752,18 @@ export const openApiDocument = {
           companyId: { type: 'string', example: '682afc5f8d249f890fad5501' },
           clientName: { type: 'string', example: 'Daniel Brooks' },
           propertyAddress: { type: 'string', example: '452 Pine St, San Francisco, CA 94104' },
+          address: { type: 'string', example: '452 Pine St' },
+          city: { type: 'string', example: 'San Francisco' },
+          state: { type: 'string', example: 'CA' },
+          zip: { type: 'string', example: '94104' },
           signerName: { type: 'string', example: 'Daniel Brooks' },
           signerPhone: { type: 'string', example: '(555) 401-8291' },
           signingDate: { type: 'string', example: '10/24/2024' },
           signingTime: { type: 'string', example: '2:00 PM' },
+          date: { type: 'string', example: 'Mar 20, 2026' },
           loanType: { type: 'string', enum: ['Refinance', 'Purchase', 'HELOC', 'Other'], example: 'Refinance' },
           scanbacksRequired: { type: 'boolean', example: true },
+          scanbacks: { type: 'string', example: 'Yes' },
           status: { $ref: '#/components/schemas/OrderStatus' },
           priority: {
             type: 'string',
@@ -764,14 +775,17 @@ export const openApiDocument = {
             enum: ['First available', 'Verified only', 'Manual assignment'],
             example: 'First available',
           },
+          preferredNotary: { type: 'string', example: 'Sarah Jenkins' },
           instructions: { type: 'string', example: 'Please ensure all signatures are in blue ink.' },
+          specialInstructions: { type: 'string', example: 'Signer prefers blue ink and evening availability.' },
           notaryNotes: { type: 'string', example: 'Borrower requested evening signing.' },
           documents: {
             type: 'array',
             items: { $ref: '#/components/schemas/OrderDocumentPayload' },
           },
         },
-        required: ['propertyAddress', 'signingDate', 'signingTime'],
+        description:
+          'Accepts both admin dashboard fields and company portal fields. propertyAddress may be sent directly, or built from address/city/state/zip. signingDate may also be sent as date. signingTime defaults to TBD when omitted.',
       },
       PortalOrder: {
         type: 'object',
@@ -786,6 +800,7 @@ export const openApiDocument = {
           time: { type: 'string', example: '2:00 PM' },
           loanType: { type: 'string', example: 'Refinance' },
           scanbacksRequired: { type: 'boolean', example: true },
+          preferredNotaryName: { type: 'string', example: 'Sarah Jenkins' },
         },
         required: ['id', 'clientName', 'propertyAddress', 'location', 'notary', 'status', 'date'],
       },
@@ -806,6 +821,7 @@ export const openApiDocument = {
           priority: { type: 'string', example: 'Standard' },
           loanType: { type: 'string', example: 'Refinance' },
           scanbacksRequired: { type: 'boolean', example: true },
+          preferredNotaryName: { type: 'string', example: 'Sarah Jenkins' },
           assignedNotaryName: { type: 'string', example: 'Sarah Jenkins' },
           assignedNotaryId: { type: 'string', example: '682afc5f8d249f890fad6601' },
           specialInstructions: { type: 'string', example: 'Please ensure blue ink signatures.' },
@@ -829,6 +845,7 @@ export const openApiDocument = {
         properties: {
           notaryName: { type: 'string', example: 'Sarah Jenkins' },
           notaryId: { type: 'string', example: '682afc5f8d249f890fad6601' },
+          notaryEmail: { type: 'string', format: 'email', example: 'sarah.jenkins@example.com' },
         },
         required: ['notaryName'],
       },
@@ -2285,7 +2302,8 @@ export const openApiDocument = {
       post: {
         tags: ['Orders'],
         summary: 'Create an order as an admin or title company user',
-        description: 'Notary users are not allowed to create orders. Company-created orders are automatically scoped to the caller.',
+        description:
+          'Notary users are not allowed to create orders. Company-created orders are automatically scoped to the caller, notify admins, and create document metadata records for submitted document entries.',
         security: [{ bearerAuth: [] }],
         requestBody: {
           required: true,
@@ -2314,6 +2332,14 @@ export const openApiDocument = {
           },
           '401': {
             description: 'Invalid or missing token',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+          '403': {
+            description: 'Company member lacks create order permission or notary attempted to create an order',
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ErrorEnvelope' },
@@ -2359,7 +2385,7 @@ export const openApiDocument = {
         tags: ['Orders'],
         summary: 'Update order details within caller scope',
         description:
-          'Admins can update all order fields. Company users can update their own order details. Notaries can update only status and notary notes on assigned orders.',
+          'Admins can update all order fields. Company users can update their own order details. Notaries can update status, notary notes, signing date, and signing time on assigned orders.',
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -2483,7 +2509,8 @@ export const openApiDocument = {
       patch: {
         tags: ['Orders'],
         summary: 'Assign a notary to an order',
-        description: 'Only admins can assign notaries.',
+        description:
+          'Only admins can assign notaries. The API accepts a notary id, email, or display name; when a real notary account is resolved, the assigned order becomes visible in that notary dashboard scope.',
         security: [{ bearerAuth: [] }],
         parameters: [
           {

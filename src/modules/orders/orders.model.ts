@@ -50,11 +50,13 @@ export interface IOrder extends Document {
   status: OrderStatus;
   priority: OrderPriority;
   notaryPreference: NotaryPreference;
+  preferredNotaryName?: string;
   assignedNotaryId?: Types.ObjectId;
   assignedNotaryName: string;
   avatarKey: 'none' | 'jane' | 'mark';
   specialInstructions?: string;
   notaryNotes?: string;
+  notaryPrintedConfirmed: boolean;
   documents: IOrderDocument[];
   timeline: IOrderTimelineEvent[];
   createdByAdminId?: Types.ObjectId;
@@ -99,11 +101,13 @@ const orderSchema = new Schema<IOrder>(
     status: { type: String, enum: orderStatuses, default: 'Received', index: true },
     priority: { type: String, enum: orderPriorities, default: 'Standard' },
     notaryPreference: { type: String, enum: notaryPreferences, default: 'First available' },
+    preferredNotaryName: { type: String, trim: true },
     assignedNotaryId: { type: Schema.Types.ObjectId, ref: 'NotaryUser', index: true },
     assignedNotaryName: { type: String, default: 'Unassigned', trim: true },
     avatarKey: { type: String, enum: ['none', 'jane', 'mark'], default: 'none' },
     specialInstructions: { type: String, trim: true },
     notaryNotes: { type: String, trim: true },
+    notaryPrintedConfirmed: { type: Boolean, default: false },
     documents: { type: [orderDocumentSchema], default: [] },
     timeline: { type: [orderTimelineEventSchema], default: [] },
     createdByAdminId: { type: Schema.Types.ObjectId, ref: 'AdminUser' },

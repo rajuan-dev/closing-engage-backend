@@ -2,7 +2,9 @@ import { StatusCodes } from 'http-status-codes';
 import { Types } from 'mongoose';
 
 import { HttpError } from '../../core/http-error';
-import { createNotificationSafely } from '../notifications/notifications.service';
+import { buildDocumentS3Key } from '../../utils/s3';
+import { ClosingDocument } from '../documents/documents.model';
+import { createNotificationSafely, notifyAdminsSafely } from '../notifications/notifications.service';
 import { CompanyUser } from '../user/company-user.model';
 import { NotaryUser } from '../user/notary-user.model';
 import { IOrder, IOrderDocument, LoanType, NotaryPreference, Order, OrderPriority, OrderStatus } from './orders.model';
@@ -57,6 +59,12 @@ const timelineDate = (date: Date): string =>
 
 const avatarForNotary = (name: string): 'jane' | 'mark' =>
   name.toLowerCase().includes('sarah') || name.toLowerCase().includes('elena') ? 'jane' : 'mark';
+
+const sizeLabelFromBytes = (size?: number, fallback?: string): string => {
+  if (fallback?.trim()) return fallback.trim();
+  if (!size) return '0 MB';
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+};
 
 const pushTimeline = (order: IOrder, title: string, tone: 'blue' | 'slate' | 'green' | 'red' = 'blue'): void => {
   order.timeline.unshift({ title, date: new Date(), tone });
@@ -135,12 +143,14 @@ export const serializeOrderDetail = (order: IOrder) => ({
   status: order.status,
   priority: order.priority,
   notaryPreference: order.notaryPreference,
+  preferredNotaryName: order.preferredNotaryName ?? '',
   notary: order.assignedNotaryName === 'Unassigned' ? '--' : order.assignedNotaryName,
   assignedNotaryName: order.assignedNotaryName,
   assignedNotaryId: order.assignedNotaryId?.toString() ?? '',
   avatarKey: order.avatarKey,
   specialInstructions: order.specialInstructions ?? '',
   notaryNotes: order.notaryNotes ?? '',
+  notaryPrintedConfirmed: order.notaryPrintedConfirmed ?? false,
   documents: order.documents.map((document) => ({
     name: document.name,
     meta: document.meta,
@@ -166,6 +176,8 @@ const serializePortalOrder = (order: IOrder) => ({
   time: order.signingTime,
   loanType: order.loanType ?? '',
   scanbacksRequired: order.scanbacksRequired,
+  preferredNotaryName: order.preferredNotaryName ?? '',
+  notaryPrintedConfirmed: order.notaryPrintedConfirmed ?? false,
 });
 
 export const listOrders = async (auth: AuthContext, filters: { status?: OrderStatus; search?: string }) => {
@@ -184,6 +196,12 @@ export const listOrders = async (auth: AuthContext, filters: { status?: OrderSta
   return auth.role === 'admin' ? orders.map(serializeOrderRow) : orders.map(serializePortalOrder);
 };
 
+type OrderDocumentInput = Pick<IOrderDocument, 'name' | 'meta'> & {
+  fileSize?: number;
+  size?: string;
+  mimeType?: string;
+};
+
 export const createOrder = async (auth: AuthContext, payload: {
   title?: string;
   titleCompany: string;
@@ -199,8 +217,9 @@ export const createOrder = async (auth: AuthContext, payload: {
   status: OrderStatus;
   priority: OrderPriority;
   notaryPreference: NotaryPreference;
+  preferredNotaryName?: string;
   instructions?: string;
-  documents?: Pick<IOrderDocument, 'name' | 'meta'>[];
+  documents?: OrderDocumentInput[];
   createdByAdminId?: string;
 }) => {
   if (auth.role === 'notary') {
@@ -245,15 +264,78 @@ export const createOrder = async (auth: AuthContext, payload: {
     status: payload.status,
     priority: payload.priority,
     notaryPreference: payload.notaryPreference,
+    preferredNotaryName: payload.preferredNotaryName,
     specialInstructions: payload.instructions,
     documents: (payload.documents ?? []).map((document) => ({
-      ...document,
-      uploadedBy: 'Admin',
+      name: document.name,
+      meta: document.meta,
+      uploadedBy: auth.role === 'company' ? 'Title Company' : 'Admin',
       uploadedAt: new Date(),
     })),
     timeline: [{ title: `Order created by ${auth.role === 'admin' ? 'Admin' : 'Title Company'}`, date: new Date(), tone: 'blue' }],
     createdByAdminId: auth.role === 'admin' ? auth.id : payload.createdByAdminId,
   });
+
+  if (payload.documents?.length) {
+    const uploaderRole = auth.role === 'company' ? 'company' : 'admin';
+    const uploadedByName = auth.role === 'company' ? titleCompany : 'Closing Engage Admin';
+    const uploadedBy = Types.ObjectId.isValid(auth.id) ? new Types.ObjectId(auth.id) : undefined;
+
+    await ClosingDocument.insertMany(
+      payload.documents.map((document) => {
+        const s3Key = buildDocumentS3Key({
+          role: uploaderRole,
+          orderId: order.orderNumber,
+          ownerId: auth.id,
+          fileName: document.name,
+        });
+
+        return {
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          fileName: document.name,
+          fileSize: document.fileSize ?? 0,
+          sizeLabel: sizeLabelFromBytes(document.fileSize, document.size || document.meta),
+          mimeType: document.mimeType || 'application/pdf',
+          uploadedBy,
+          uploadedByName,
+          uploaderRole,
+          status: auth.role === 'company' ? 'Submitted' : 'Pending Review',
+          s3Key,
+          versions: [
+            {
+              s3Key,
+              versionId: 'V1',
+              fileName: document.name,
+              fileSize: document.fileSize ?? 0,
+              mimeType: document.mimeType || 'application/pdf',
+              uploadedBy,
+              uploaderRole,
+              uploadedAt: new Date(),
+            },
+          ],
+        };
+      }),
+    );
+  }
+
+  if (auth.role === 'company') {
+    void notifyAdminsSafely({
+      title: 'New Order Submitted',
+      message: `${titleCompany} submitted ${order.orderNumber} for assignment and review.`,
+      type: 'order',
+      linkId: order.orderNumber,
+    });
+
+    void createNotificationSafely({
+      recipientId: auth.id,
+      recipientRole: 'company',
+      title: 'Order Submitted',
+      message: `Your order ${order.orderNumber} was received by Closing Engage.`,
+      type: 'order',
+      linkId: order.orderNumber,
+    });
+  }
 
   return auth.role === 'admin' ? serializeOrderRow(order) : serializePortalOrder(order);
 };
@@ -280,17 +362,25 @@ export const updateOrder = async (
     status: OrderStatus;
     priority: OrderPriority;
     notaryPreference: NotaryPreference;
+    preferredNotaryName?: string;
     instructions?: string;
     notaryNotes?: string;
+    documents?: OrderDocumentInput[];
   }>,
 ) => {
   const order = await findOrder(id, auth);
 
   if (auth.role === 'notary') {
-    const notaryOnlyFields = Object.keys(payload).every((key) => ['status', 'notaryNotes'].includes(key));
+    const notaryOnlyFields = Object.keys(payload).every((key) =>
+      ['status', 'notaryNotes', 'signingDate', 'signingTime'].includes(key),
+    );
     if (!notaryOnlyFields) {
-      throw new HttpError(StatusCodes.FORBIDDEN, 'Notaries can only update assigned order status or notes');
+      throw new HttpError(StatusCodes.FORBIDDEN, 'Notaries can only update assigned order status, notes, or schedule');
     }
+  }
+
+  if (auth.role === 'company' && payload.status !== undefined) {
+    throw new HttpError(StatusCodes.FORBIDDEN, 'Company users cannot update order status');
   }
 
   if (payload.title !== undefined) order.title = payload.title;
@@ -318,8 +408,23 @@ export const updateOrder = async (
   }
   if (payload.priority !== undefined) order.priority = payload.priority;
   if (payload.notaryPreference !== undefined) order.notaryPreference = payload.notaryPreference;
+  if (payload.preferredNotaryName !== undefined) order.preferredNotaryName = payload.preferredNotaryName;
   if (payload.instructions !== undefined) order.specialInstructions = payload.instructions;
   if (payload.notaryNotes !== undefined) order.notaryNotes = payload.notaryNotes;
+  if (payload.documents?.length) {
+    const uploadedByRole: IOrderDocument['uploadedBy'] =
+      auth.role === 'company' ? 'Title Company' : auth.role === 'notary' ? 'Notary' : 'Admin';
+
+    order.documents.unshift(
+      ...payload.documents.map((document) => ({
+        name: document.name,
+        meta: document.meta,
+        uploadedBy: uploadedByRole,
+        uploadedAt: new Date(),
+      })),
+    );
+    pushTimeline(order, `${payload.documents.length} document${payload.documents.length === 1 ? '' : 's'} added`, 'blue');
+  }
 
   await order.save();
   return auth.role === 'admin' ? serializeOrderRow(order) : serializePortalOrder(order);
@@ -338,6 +443,10 @@ export const deleteOrder = async (auth: AuthContext, id: string): Promise<void> 
 };
 
 export const updateOrderStatus = async (auth: AuthContext, id: string, status: OrderStatus) => {
+  if (auth.role === 'company') {
+    throw new HttpError(StatusCodes.FORBIDDEN, 'Company users cannot update order status');
+  }
+
   const order = await findOrder(id, auth);
   order.status = status;
   pushTimeline(order, `Order status changed to "${status}"`, status === 'Rejected' ? 'red' : 'blue');
@@ -345,7 +454,11 @@ export const updateOrderStatus = async (auth: AuthContext, id: string, status: O
   return auth.role === 'admin' ? serializeOrderRow(order) : serializePortalOrder(order);
 };
 
-export const assignNotary = async (auth: AuthContext, id: string, payload: { notaryName: string; notaryId?: string }) => {
+export const assignNotary = async (
+  auth: AuthContext,
+  id: string,
+  payload: { notaryName: string; notaryId?: string; notaryEmail?: string },
+) => {
   if (auth.role !== 'admin') {
     throw new HttpError(StatusCodes.FORBIDDEN, 'Only admins can assign notaries');
   }
@@ -355,7 +468,11 @@ export const assignNotary = async (auth: AuthContext, id: string, payload: { not
   let notaryName = payload.notaryName;
 
   if (!notaryId) {
-    const notary = await NotaryUser.findOne({ fullName: payload.notaryName });
+    const notary = await NotaryUser.findOne({
+      status: { $ne: 'Inactive' },
+      $or: [{ fullName: payload.notaryName }, ...(payload.notaryEmail ? [{ email: payload.notaryEmail }] : [])],
+    }).collation({ locale: 'en', strength: 2 });
+
     if (notary) {
       notaryId = notary._id.toString();
       notaryName = notary.fullName;
@@ -395,6 +512,40 @@ export const assignNotary = async (auth: AuthContext, id: string, payload: { not
   }
 
   return serializeOrderRow(order);
+};
+
+export const confirmNotaryPrintedDocuments = async (auth: AuthContext, id: string) => {
+  if (auth.role !== 'notary') {
+    throw new HttpError(StatusCodes.FORBIDDEN, 'Only notaries can confirm printed documents');
+  }
+
+  const order = await findOrder(id, auth);
+
+  if (!order.notaryPrintedConfirmed) {
+    order.notaryPrintedConfirmed = true;
+    pushTimeline(order, 'Documents printed by notary confirmed', 'slate');
+    await order.save();
+
+    if (order.companyId) {
+      void createNotificationSafely({
+        recipientId: order.companyId,
+        recipientRole: 'company',
+        title: 'Documents Printed by Notary',
+        message: `The notary confirmed printed documents for ${order.orderNumber}.`,
+        type: 'order',
+        linkId: order.orderNumber,
+      });
+    }
+
+    void notifyAdminsSafely({
+      title: 'Documents Printed by Notary',
+      message: `The notary confirmed printed documents for ${order.orderNumber}.`,
+      type: 'order',
+      linkId: order.orderNumber,
+    });
+  }
+
+  return serializeOrderDetail(order);
 };
 
 export const listOrderTimeline = async (auth: AuthContext, id: string) => {

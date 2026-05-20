@@ -3,7 +3,14 @@ import { Types } from 'mongoose';
 
 import { HttpError } from '../../core/http-error';
 import { logger } from '../../core/logger';
-import { buildDocumentS3Key, createGetSignedUrl, createPutSignedUrl, deleteS3ObjectSafely } from '../../utils/s3';
+import {
+  buildDocumentS3Key,
+  createGetSignedUrl,
+  createPutSignedUrl,
+  deleteS3ObjectSafely,
+  getObjectBufferFromS3,
+  uploadBufferToS3,
+} from '../../utils/s3';
 import { createNotificationSafely, notifyAdminsSafely } from '../notifications/notifications.service';
 import { Order } from '../orders/orders.model';
 import { CompanyUser } from '../user/company-user.model';
@@ -49,6 +56,19 @@ type AddVersionPayload = {
   mimeType?: string;
   s3Key?: string;
   requestUploadUrl?: boolean;
+};
+
+type UploadDocumentBinaryPayload = {
+  orderId?: string;
+  orderNumber?: string;
+  fileName: string;
+  fileSize?: number;
+  size?: string;
+  mimeType?: string;
+  uploadedByName?: string;
+  uploaderRole?: UploaderRole;
+  status?: DocumentStatus;
+  comments?: string;
 };
 
 const readableDate = (date: Date): string =>
@@ -104,12 +124,20 @@ const documentScopeQuery = async (auth: AuthContext): Promise<DocumentQuery> => 
 
   if (auth.role === 'company') {
     const companyOrders = await Order.find({ companyId: auth.id }).select('_id orderNumber');
+    const companyOrderIds = companyOrders.map((order) => order._id);
+    const companyOrderNumbers = companyOrders.map((order) => order.orderNumber);
+
     return {
-      $or: [
-        { uploadedBy: auth.id },
-        { uploaderRole: { $in: ['company', 'title-company'] } },
-        { orderId: { $in: companyOrders.map((order) => order._id) } },
-        { orderNumber: { $in: companyOrders.map((order) => order.orderNumber) } },
+      $and: [
+        {
+          $or: [{ uploadedBy: auth.id }, { orderId: { $in: companyOrderIds } }, { orderNumber: { $in: companyOrderNumbers } }],
+        },
+        {
+          $or: [
+            { uploaderRole: { $ne: 'notary' } },
+            { status: { $in: ['Approved', 'Verified'] } },
+          ],
+        },
       ],
     };
   }
@@ -174,9 +202,10 @@ const toAdminStatus = (status: DocumentStatus): 'Approved' | 'Rejected' | 'Pendi
   return 'Pending';
 };
 
-const toPortalStatus = (status: DocumentStatus): 'Approved' | 'Submitted' | 'Pending' | 'Verified' => {
+const toPortalStatus = (status: DocumentStatus): 'Approved' | 'Submitted' | 'Pending' | 'Verified' | 'Rejected' => {
   if (status === 'Approved') return 'Approved';
   if (status === 'Verified') return 'Verified';
+  if (status === 'Rejected') return 'Rejected';
   if (status === 'Submitted') return 'Submitted';
   return 'Pending';
 };
@@ -328,6 +357,77 @@ export const createDocument = async (auth: AuthContext, payload: CreateDocumentP
   return { document: serializeDocumentDetail(document), uploadUrl, uploadUrlError };
 };
 
+export const uploadDocumentBinary = async (auth: AuthContext, payload: UploadDocumentBinaryPayload, fileBuffer: Buffer) => {
+  const orderIdentifier = payload.orderId || payload.orderNumber;
+  const order = await assertOrderScope(auth, orderIdentifier);
+  const uploaderRole = uploaderRoleFor(auth, payload.uploaderRole);
+  const orderNumber = normalizeOrderNumber(order?.orderNumber || payload.orderNumber || payload.orderId);
+  const s3Key = buildDocumentS3Key({
+    role: uploaderRole,
+    orderId: orderNumber,
+    ownerId: auth.id,
+    fileName: payload.fileName,
+  });
+
+  await uploadBufferToS3({
+    key: s3Key,
+    body: fileBuffer,
+    contentType: payload.mimeType || 'application/octet-stream',
+  });
+
+  const document = await ClosingDocument.create({
+    orderId: order?._id,
+    orderNumber,
+    fileName: payload.fileName,
+    fileSize: payload.fileSize ?? fileBuffer.length,
+    sizeLabel: payload.size,
+    mimeType: payload.mimeType || 'application/octet-stream',
+    uploadedBy: auth.id,
+    uploadedByName: await uploadedByFor(auth, payload.uploadedByName),
+    uploaderRole,
+    status: payload.status || (auth.role === 'notary' ? 'Submitted' : 'Pending Review'),
+    comments: payload.comments,
+    s3Key,
+    versions: [
+      {
+        s3Key,
+        versionId: 'V1',
+        fileName: payload.fileName,
+        fileSize: payload.fileSize ?? fileBuffer.length,
+        mimeType: payload.mimeType || 'application/octet-stream',
+        uploadedBy: new Types.ObjectId(auth.id),
+        uploaderRole,
+        uploadedAt: new Date(),
+      },
+    ],
+  });
+
+  if (order && auth.role === 'notary') {
+    order.status = 'Under Review';
+    order.documents.unshift({
+      name: payload.fileName,
+      meta: `${sizeLabelFromBytes(payload.fileSize ?? fileBuffer.length, payload.size)} • Scanback submitted`,
+      uploadedBy: 'Notary',
+      uploadedAt: new Date(),
+    });
+    order.timeline.unshift({
+      title: `Scanbacks submitted: ${payload.fileName}`,
+      date: new Date(),
+      tone: 'blue',
+    });
+    await order.save();
+
+    void notifyAdminsSafely({
+      title: 'Scanbacks Submitted',
+      message: `Order ${order.orderNumber} is ready for document review.`,
+      type: 'document',
+      linkId: document._id.toString(),
+    });
+  }
+
+  return serializeDocumentDetail(document);
+};
+
 export const getDocument = async (auth: AuthContext, id: string) => {
   assertCompanyPermission(auth, 'viewOrders', 'You do not have permission to view documents');
   const document = await findDocument(auth, id);
@@ -372,6 +472,50 @@ export const updateDocumentStatus = async (auth: AuthContext, id: string, payloa
         recipientRole: 'company',
         title: 'Document Approved',
         message: `${document.fileName} has been approved.`,
+        type: 'document',
+        linkId: document._id.toString(),
+      });
+    }
+  }
+
+  return serializeDocumentDetail(document);
+};
+
+export const resubmitDocument = async (auth: AuthContext, id: string) => {
+  if (auth.role !== 'notary') {
+    throw new HttpError(StatusCodes.FORBIDDEN, 'Only notaries can resubmit scanbacks');
+  }
+
+  const document = await findDocument(auth, id);
+  if (document.uploaderRole !== 'notary' || document.uploadedBy?.toString() !== auth.id) {
+    throw new HttpError(StatusCodes.FORBIDDEN, 'Only your own scanback documents can be resubmitted');
+  }
+
+  if (document.status !== 'Rejected') {
+    throw new HttpError(StatusCodes.CONFLICT, 'Only rejected scanbacks can be resubmitted');
+  }
+
+  document.status = 'Submitted';
+  document.comments = undefined;
+  document.isLocked = false;
+  document.reviewedBy = undefined;
+  document.reviewedAt = undefined;
+  await document.save();
+
+  if (document.orderId) {
+    const order = await Order.findById(document.orderId);
+    if (order) {
+      order.status = 'Under Review';
+      order.timeline.unshift({
+        title: `Scanbacks resubmitted: ${document.fileName}`,
+        date: new Date(),
+        tone: 'blue',
+      });
+      await order.save();
+
+      void notifyAdminsSafely({
+        title: 'Scanbacks Resubmitted',
+        message: `Order ${order.orderNumber} is ready for document review again.`,
         type: 'document',
         linkId: document._id.toString(),
       });
@@ -478,6 +622,7 @@ export const getDocumentSignedUrl = async (auth: AuthContext, id: string, mode: 
     const url = await createGetSignedUrl({
       key: document.s3Key,
       responseContentDisposition: mode === 'download' ? `attachment; filename="${document.fileName}"` : 'inline',
+      responseContentType: mode === 'preview' ? document.mimeType || 'application/pdf' : undefined,
     });
 
     return {
@@ -489,5 +634,29 @@ export const getDocumentSignedUrl = async (auth: AuthContext, id: string, mode: 
   } catch (error) {
     logger.error({ err: error, documentId: id, s3Key: document.s3Key, mode }, 'S3 signed read URL generation failed');
     throw new HttpError(StatusCodes.BAD_GATEWAY, 'Secure document URL could not be generated');
+  }
+};
+
+export const getDocumentFile = async (auth: AuthContext, id: string, mode: 'download' | 'preview') => {
+  if (mode === 'download') {
+    assertCompanyPermission(auth, 'downloadDocuments', 'You do not have permission to download documents');
+  } else {
+    assertCompanyPermission(auth, 'viewOrders', 'You do not have permission to preview documents');
+  }
+
+  const document = await findDocument(auth, id);
+
+  try {
+    const file = await getObjectBufferFromS3({ key: document.s3Key });
+    return {
+      fileName: document.fileName,
+      contentType: file.contentType || document.mimeType || 'application/octet-stream',
+      contentLength: file.contentLength ?? file.body.length,
+      body: file.body,
+      disposition: mode === 'download' ? 'attachment' : 'inline',
+    };
+  } catch (error) {
+    logger.error({ err: error, documentId: id, s3Key: document.s3Key, mode }, 'S3 stored document fetch failed');
+    throw new HttpError(StatusCodes.NOT_FOUND, 'Stored document file was not found');
   }
 };
