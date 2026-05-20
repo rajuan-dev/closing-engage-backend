@@ -37,6 +37,7 @@ const profileSchema = z.object({
   companyEmail: z.string().trim().email('Valid company email is required'),
   contactNumber: z.string().trim().min(1, 'Contact number is required'),
   businessAddress: z.string().trim().min(1, 'Business address is required'),
+  avatarUrl: z.string().trim().optional(),
 });
 
 const passwordSchema = z

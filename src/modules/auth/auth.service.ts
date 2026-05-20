@@ -49,6 +49,7 @@ interface AdminProfileInput {
   companyEmail: string;
   contactNumber: string;
   businessAddress: string;
+  avatarUrl?: string;
 }
 
 const sanitizeAdmin = (admin: IAdminUser) => ({
@@ -63,6 +64,7 @@ const sanitizeAdmin = (admin: IAdminUser) => ({
     companyEmail: admin.companyEmail,
     contactNumber: admin.contactNumber,
     businessAddress: admin.businessAddress,
+    avatarUrl: admin.avatarUrl ?? '',
   },
 });
 
@@ -762,6 +764,9 @@ export const updateAdminProfile = async (id: string, updates: AdminProfileInput)
   admin.companyEmail = updates.companyEmail.trim().toLowerCase();
   admin.contactNumber = updates.contactNumber;
   admin.businessAddress = updates.businessAddress;
+  if (updates.avatarUrl !== undefined) {
+    admin.avatarUrl = updates.avatarUrl;
+  }
 
   await admin.save();
 

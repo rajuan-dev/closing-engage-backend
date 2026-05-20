@@ -92,6 +92,7 @@ export const openApiDocument = {
           companyEmail: { type: 'string', format: 'email', example: 'admin@closingengage.com' },
           contactNumber: { type: 'string', example: '+1 (555) 010-1000' },
           businessAddress: { type: 'string', example: 'Austin, Texas' },
+          avatarUrl: { type: 'string', example: 'data:image/jpeg;base64,...' },
         },
         required: [
           'fullName',
