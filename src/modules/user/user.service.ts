@@ -99,6 +99,7 @@ const serializeCompanyUser = (company: ICompanyUser) => ({
   address: company.address ?? '',
   contactEmail: company.contactEmail ?? '',
   userName: company.userName ?? '',
+  avatarUrl: company.avatarUrl ?? '',
   sendInvite: company.sendInvite ?? false,
   verify: company.verify ?? false,
   adminVisiblePassword:
@@ -126,6 +127,7 @@ const serializeNotaryUser = (notary: INotaryUser) => ({
   expiry: notary.expiry ?? '',
   serviceArea: notary.serviceArea ?? '',
   userName: notary.userName ?? '',
+  avatarUrl: notary.avatarUrl ?? '',
   sendInvite: notary.sendInvite ?? false,
   verify: notary.verify ?? false,
   adminVisiblePassword:
