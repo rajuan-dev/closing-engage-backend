@@ -949,7 +949,7 @@ export const openApiDocument = {
           fileSize: { type: 'number', example: 1258291 },
           mimeType: { type: 'string', example: 'application/pdf' },
           status: { $ref: '#/components/schemas/DocumentStatus' },
-          displayStatus: { type: 'string', enum: ['Approved', 'Submitted', 'Pending', 'Verified'], example: 'Pending' },
+          displayStatus: { type: 'string', enum: ['Approved', 'Submitted', 'Pending', 'Verified', 'Rejected'], example: 'Pending' },
           uploadedBy: { type: 'string', example: 'Northway Holdings' },
           uploaderRole: { type: 'string', enum: ['admin', 'company', 'notary', 'buyer', 'title-company'], example: 'company' },
           comments: { type: 'string', example: 'Needs clearer scanback on page 4.' },
@@ -2468,7 +2468,7 @@ export const openApiDocument = {
       patch: {
         tags: ['Orders'],
         summary: 'Update order status within caller scope',
-        description: 'Admins can update any order. Company users can update company-owned orders. Notaries can update assigned orders.',
+        description: 'Admins can update any order. Company users are blocked from direct status changes. Notaries should use the dedicated /orders/{id}/notary-status endpoint.',
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -2492,6 +2492,65 @@ export const openApiDocument = {
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/OrderSingleResponse' },
+              },
+            },
+          },
+          '404': {
+            description: 'Order not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+          '403': {
+            description: 'Company users cannot update order status',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/orders/{id}/notary-status': {
+      patch: {
+        tags: ['Orders'],
+        summary: 'Update order status as the assigned notary',
+        description:
+          'Only authenticated notaries can call this endpoint, and only for orders assigned to their account.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            in: 'path',
+            name: 'id',
+            required: true,
+            schema: { type: 'string', example: '#ORD-90212' },
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/OrderStatusPayload' },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Notary order status updated',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/OrderSingleResponse' },
+              },
+            },
+          },
+          '403': {
+            description: 'Notary role required or order is outside notary assignment scope',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
               },
             },
           },
@@ -2590,6 +2649,49 @@ export const openApiDocument = {
         },
       },
     },
+    '/orders/{id}/printed-confirmation': {
+      patch: {
+        tags: ['Orders'],
+        summary: 'Confirm printed documents as the assigned notary',
+        description:
+          'Only the assigned notary can confirm that documents were printed. The endpoint updates the order timeline and triggers notifications without requiring a request body.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            in: 'path',
+            name: 'id',
+            required: true,
+            schema: { type: 'string', example: '#ORD-90212' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Printed documents confirmed',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/OrderSingleResponse' },
+              },
+            },
+          },
+          '403': {
+            description: 'Only notaries can confirm printed documents',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+          '404': {
+            description: 'Order not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
     '/documents': {
       get: {
         tags: ['Documents'],
@@ -2661,6 +2763,114 @@ export const openApiDocument = {
           },
           '400': {
             description: 'Validation failed',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+          '403': {
+            description: 'Role scope violation',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/documents/upload': {
+      post: {
+        tags: ['Documents'],
+        summary: 'Upload a binary document body directly',
+        description:
+          'Uploads a raw file body and immediately creates the document record. The binary payload is read from the request body, while metadata such as orderNumber and fileName is passed through query parameters.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            in: 'query',
+            name: 'orderId',
+            required: false,
+            schema: { type: 'string', example: '#ORD-882190' },
+          },
+          {
+            in: 'query',
+            name: 'orderNumber',
+            required: false,
+            schema: { type: 'string', example: '#ORD-882190' },
+          },
+          {
+            in: 'query',
+            name: 'fileName',
+            required: true,
+            schema: { type: 'string', example: 'scanback_signed_final.pdf' },
+          },
+          {
+            in: 'query',
+            name: 'fileSize',
+            required: false,
+            schema: { type: 'number', example: 4404019 },
+          },
+          {
+            in: 'query',
+            name: 'size',
+            required: false,
+            schema: { type: 'string', example: '4.2 MB' },
+          },
+          {
+            in: 'query',
+            name: 'mimeType',
+            required: false,
+            schema: { type: 'string', example: 'application/pdf' },
+          },
+          {
+            in: 'query',
+            name: 'uploadedByName',
+            required: false,
+            schema: { type: 'string', example: 'Sarah Miller' },
+          },
+          {
+            in: 'query',
+            name: 'uploaderRole',
+            required: false,
+            schema: { type: 'string', enum: ['admin', 'company', 'notary', 'buyer', 'title-company'], example: 'notary' },
+          },
+          {
+            in: 'query',
+            name: 'status',
+            required: false,
+            schema: { $ref: '#/components/schemas/DocumentStatus' },
+          },
+          {
+            in: 'query',
+            name: 'comments',
+            required: false,
+            schema: { type: 'string', example: 'Uploaded from notary scanback flow.' },
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/pdf': {
+              schema: { type: 'string', format: 'binary' },
+            },
+            'application/octet-stream': {
+              schema: { type: 'string', format: 'binary' },
+            },
+          },
+        },
+        responses: {
+          '201': {
+            description: 'Document uploaded successfully',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/DocumentSingleResponse' },
+              },
+            },
+          },
+          '400': {
+            description: 'Validation failed or binary body missing',
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ErrorEnvelope' },
@@ -2784,6 +2994,57 @@ export const openApiDocument = {
           },
           '403': {
             description: 'Admin role required',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/documents/{id}/resubmit': {
+      post: {
+        tags: ['Documents'],
+        summary: 'Resubmit a rejected scanback as the original notary uploader',
+        description:
+          'Only notaries can resubmit their own rejected scanback documents. The document status becomes Submitted again and the parent order returns to Under Review.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            in: 'path',
+            name: 'id',
+            required: true,
+            schema: { type: 'string' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Document resubmitted',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/DocumentSingleResponse' },
+              },
+            },
+          },
+          '403': {
+            description: 'Only notaries can resubmit their own scanbacks',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+          '404': {
+            description: 'Document not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+          '409': {
+            description: 'Only rejected scanbacks can be resubmitted',
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ErrorEnvelope' },
@@ -2955,6 +3216,58 @@ export const openApiDocument = {
           },
           '502': {
             description: 'S3 signed URL generation failed',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/documents/{id}/content': {
+      get: {
+        tags: ['Documents'],
+        summary: 'Stream document content for inline preview or download',
+        description:
+          'Returns the stored file bytes directly. Use mode=preview for inline viewing or mode=download for attachment delivery.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            in: 'path',
+            name: 'id',
+            required: true,
+            schema: { type: 'string' },
+          },
+          {
+            in: 'query',
+            name: 'mode',
+            required: false,
+            schema: { type: 'string', enum: ['preview', 'download'], example: 'preview' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Binary document content',
+            content: {
+              'application/pdf': {
+                schema: { type: 'string', format: 'binary' },
+              },
+              'application/octet-stream': {
+                schema: { type: 'string', format: 'binary' },
+              },
+            },
+          },
+          '404': {
+            description: 'Stored document file was not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+          '502': {
+            description: 'Secure document retrieval failed',
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ErrorEnvelope' },
