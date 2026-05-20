@@ -28,6 +28,7 @@ export const openApiDocument = {
     { name: 'Orders', description: 'Admin order creation, listing, assignment, status, and timeline endpoints' },
     { name: 'Documents', description: 'Role-scoped document metadata, review, versioning, and signed URL endpoints' },
     { name: 'Notifications', description: 'Role-scoped notification inbox and read-state endpoints' },
+    { name: 'Analytics', description: 'Admin-only operational analytics and trend endpoints' },
     { name: 'Communications', description: 'Order-scoped real-time admin and assigned-notary messaging endpoints' },
     ...generatedTags,
   ],
@@ -1144,6 +1145,100 @@ export const openApiDocument = {
             type: 'object',
             properties: {
               data: { $ref: '#/components/schemas/NotificationItem' },
+            },
+            required: ['data'],
+          },
+        ],
+      },
+      AnalyticsOverviewResponse: {
+        allOf: [
+          { $ref: '#/components/schemas/SuccessEnvelope' },
+          {
+            type: 'object',
+            properties: {
+              data: {
+                type: 'object',
+                properties: {
+                  range: { type: 'string', enum: ['today', '7d', '30d', '90d', 'custom'], example: '30d' },
+                  generatedAt: { type: 'string', format: 'date-time' },
+                  filters: {
+                    type: 'object',
+                    properties: {
+                      startDate: { type: 'string', format: 'date-time' },
+                      endDate: { type: 'string', format: 'date-time' },
+                    },
+                    required: ['startDate', 'endDate'],
+                  },
+                  metrics: {
+                    type: 'object',
+                    properties: {
+                      totalOrders: {
+                        type: 'object',
+                        properties: {
+                          value: { type: 'integer', example: 2482 },
+                          note: { type: 'string', example: '+12%' },
+                        },
+                        required: ['value'],
+                      },
+                      completedOrders: { type: 'integer', example: 1845 },
+                      pendingOrders: { type: 'integer', example: 485 },
+                      activeNotaries: { type: 'integer', example: 124 },
+                      titleCompanies: { type: 'integer', example: 86 },
+                    },
+                    required: ['totalOrders', 'completedOrders', 'pendingOrders', 'activeNotaries', 'titleCompanies'],
+                  },
+                  ordersByStatus: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        label: { type: 'string', example: 'Completed' },
+                        shortLabel: { type: 'string', example: 'Completed' },
+                        value: { type: 'integer', example: 1845 },
+                      },
+                      required: ['label', 'shortLabel', 'value'],
+                    },
+                  },
+                  ordersTrend: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        label: { type: 'string', example: 'Wk 1' },
+                        value: { type: 'integer', example: 420 },
+                      },
+                      required: ['label', 'value'],
+                    },
+                  },
+                  topNotaries: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        id: { type: 'string', example: '682afc5f8d249f890fad2230' },
+                        initials: { type: 'string', example: 'SC' },
+                        name: { type: 'string', example: 'Sarah Connor' },
+                        completedOrders: { type: 'integer', example: 142 },
+                      },
+                      required: ['id', 'initials', 'name', 'completedOrders'],
+                    },
+                  },
+                  topCompanies: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        id: { type: 'string', example: '682afc5f8d249f890fad2210' },
+                        name: { type: 'string', example: 'First American Title' },
+                        subtitle: { type: 'string', example: '412 orders in selected range' },
+                        orderCount: { type: 'integer', example: 412 },
+                      },
+                      required: ['id', 'name', 'subtitle', 'orderCount'],
+                    },
+                  },
+                },
+                required: ['range', 'generatedAt', 'filters', 'metrics', 'ordersByStatus', 'ordersTrend', 'topNotaries', 'topCompanies'],
+              },
             },
             required: ['data'],
           },
@@ -3647,6 +3742,66 @@ export const openApiDocument = {
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/SuccessEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/analytics/overview': {
+      get: {
+        tags: ['Analytics'],
+        summary: 'Fetch admin analytics for the selected reporting range',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            in: 'query',
+            name: 'range',
+            schema: { type: 'string', enum: ['today', '7d', '30d', '90d', 'custom'], default: '30d' },
+          },
+          {
+            in: 'query',
+            name: 'startDate',
+            schema: { type: 'string', format: 'date', example: '2026-05-01' },
+            description: 'Required when range is custom',
+          },
+          {
+            in: 'query',
+            name: 'endDate',
+            schema: { type: 'string', format: 'date', example: '2026-05-20' },
+            description: 'Required when range is custom',
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Analytics overview fetched',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/AnalyticsOverviewResponse' },
+              },
+            },
+          },
+          '400': {
+            description: 'Invalid custom date range',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+          '401': {
+            description: 'Invalid or missing token',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+          '403': {
+            description: 'Admin role is required',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
               },
             },
           },
