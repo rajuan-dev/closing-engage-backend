@@ -7,7 +7,7 @@ import { ClosingDocument } from '../documents/documents.model';
 import { createNotificationSafely, notifyAdminsSafely } from '../notifications/notifications.service';
 import { CompanyUser } from '../user/company-user.model';
 import { NotaryUser } from '../user/notary-user.model';
-import { IOrder, IOrderDocument, LoanType, NotaryPreference, Order, OrderPriority, OrderStatus } from './orders.model';
+import { IOrder, IOrderDocument, IOrderMeeting, LoanType, NotaryPreference, Order, OrderPriority, OrderStatus } from './orders.model';
 
 type OrderRow = [string, string, string, string, string, string, OrderStatus, 'none' | 'jane' | 'mark'];
 type AuthContext = {
@@ -69,6 +69,19 @@ const sizeLabelFromBytes = (size?: number, fallback?: string): string => {
 const pushTimeline = (order: IOrder, title: string, tone: 'blue' | 'slate' | 'green' | 'red' = 'blue'): void => {
   order.timeline.unshift({ title, date: new Date(), tone });
 };
+
+const serializeMeeting = (meeting?: IOrderMeeting | null) =>
+  meeting
+    ? {
+        status: meeting.status,
+        date: meeting.date,
+        time: meeting.time,
+        scheduledByRole: meeting.scheduledByRole,
+        scheduledAt: meeting.scheduledAt.toISOString(),
+        confirmedByRole: meeting.confirmedByRole,
+        confirmedAt: meeting.confirmedAt?.toISOString(),
+      }
+    : null;
 
 const orderLookupQuery = (id: string) => {
   const normalized = id.trim();
@@ -151,6 +164,7 @@ export const serializeOrderDetail = (order: IOrder) => ({
   specialInstructions: order.specialInstructions ?? '',
   notaryNotes: order.notaryNotes ?? '',
   notaryPrintedConfirmed: order.notaryPrintedConfirmed ?? false,
+  meeting: serializeMeeting(order.meeting),
   documents: order.documents.map((document) => ({
     name: document.name,
     meta: document.meta,
@@ -178,6 +192,7 @@ const serializePortalOrder = (order: IOrder) => ({
   scanbacksRequired: order.scanbacksRequired,
   preferredNotaryName: order.preferredNotaryName ?? '',
   notaryPrintedConfirmed: order.notaryPrintedConfirmed ?? false,
+  meeting: serializeMeeting(order.meeting),
 });
 
 export const listOrders = async (auth: AuthContext, filters: { status?: OrderStatus; search?: string }) => {
@@ -544,6 +559,111 @@ export const confirmNotaryPrintedDocuments = async (auth: AuthContext, id: strin
       linkId: order.orderNumber,
     });
   }
+
+  return serializeOrderDetail(order);
+};
+
+export const scheduleOrderMeeting = async (
+  auth: AuthContext,
+  id: string,
+  payload: { signingDate: string; signingTime: string },
+) => {
+  if (auth.role === 'company') {
+    throw new HttpError(StatusCodes.FORBIDDEN, 'Company users cannot schedule meetings');
+  }
+
+  const order = await findOrder(id, auth);
+  const isReschedule = Boolean(order.meeting);
+
+  order.signingDate = payload.signingDate;
+  order.signingTime = payload.signingTime;
+  order.meeting = {
+    status: 'scheduled',
+    date: payload.signingDate,
+    time: payload.signingTime,
+    scheduledByRole: auth.role,
+    scheduledAt: new Date(),
+  };
+
+  pushTimeline(
+    order,
+    `${isReschedule ? 'Closing rescheduled' : 'Closing scheduled'} for ${payload.signingDate} at ${payload.signingTime}`,
+    'blue',
+  );
+
+  await order.save();
+
+  if (order.companyId) {
+    void createNotificationSafely({
+      recipientId: order.companyId,
+      recipientRole: 'company',
+      title: isReschedule ? 'Closing Rescheduled' : 'Closing Scheduled',
+      message: `The notary scheduled ${order.orderNumber} for ${payload.signingDate} at ${payload.signingTime}. Please review and confirm the meeting.`,
+      type: 'order',
+      linkId: order.orderNumber,
+    });
+  }
+
+  void notifyAdminsSafely({
+    title: isReschedule ? 'Closing Rescheduled' : 'Closing Scheduled',
+    message: `${order.orderNumber} is scheduled for ${payload.signingDate} at ${payload.signingTime}.`,
+    type: 'order',
+    linkId: order.orderNumber,
+  });
+
+  return serializeOrderDetail(order);
+};
+
+export const confirmOrderMeeting = async (auth: AuthContext, id: string) => {
+  if (auth.role === 'notary') {
+    throw new HttpError(StatusCodes.FORBIDDEN, 'Only company users or admins can confirm meetings');
+  }
+
+  const order = await findOrder(id, auth);
+
+  if (!order.meeting) {
+    throw new HttpError(StatusCodes.BAD_REQUEST, 'No scheduled meeting exists for this order');
+  }
+
+  if (order.meeting.status === 'confirmed') {
+    return serializeOrderDetail(order);
+  }
+
+  order.meeting.status = 'confirmed';
+  order.meeting.confirmedAt = new Date();
+  order.meeting.confirmedByRole = auth.role;
+  pushTimeline(order, `Closing confirmed for ${order.meeting.date} at ${order.meeting.time}`, 'green');
+
+  await order.save();
+
+  if (order.assignedNotaryId) {
+    void createNotificationSafely({
+      recipientId: order.assignedNotaryId,
+      recipientRole: 'notary',
+      title: 'Closing Confirmed',
+      message: `The title company confirmed ${order.orderNumber} for ${order.meeting.date} at ${order.meeting.time}.`,
+      type: 'order',
+      linkId: order.orderNumber,
+    });
+  }
+
+  if (order.companyId && auth.role === 'admin') {
+    void createNotificationSafely({
+      recipientId: order.companyId,
+      recipientRole: 'company',
+      title: 'Closing Confirmed',
+      message: `Your closing for ${order.orderNumber} is confirmed for ${order.meeting.date} at ${order.meeting.time}.`,
+      type: 'order',
+      linkId: order.orderNumber,
+    });
+  }
+
+  void notifyAdminsSafely({
+    title: 'Closing Confirmed',
+    message: `${order.orderNumber} has a confirmed closing for ${order.meeting.date} at ${order.meeting.time}.`,
+    type: 'order',
+    linkId: order.orderNumber,
+  });
 
   return serializeOrderDetail(order);
 };

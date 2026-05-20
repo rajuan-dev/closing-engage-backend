@@ -8,12 +8,14 @@ import { asyncHandler } from '../../utils/async-handler';
 import { loanTypes, notaryPreferences, orderPriorities, orderStatuses } from './orders.model';
 import {
   assignNotary,
+  confirmOrderMeeting,
   confirmNotaryPrintedDocuments,
   createOrder,
   deleteOrder,
   getOrder,
   listOrderTimeline,
   listOrders,
+  scheduleOrderMeeting,
   updateOrder,
   updateOrderStatus,
 } from './orders.service';
@@ -75,6 +77,11 @@ const orderUpdatePayloadSchema = orderPayloadSchema.partial();
 
 const statusPayloadSchema = z.object({
   status: z.enum(orderStatuses),
+});
+
+const meetingPayloadSchema = z.object({
+  signingDate: nonEmpty,
+  signingTime: nonEmpty,
 });
 
 const assignNotaryPayloadSchema = z.object({
@@ -273,6 +280,29 @@ export const patchOrderPrintedConfirmation = asyncHandler(async (req: Request, r
   return sendResponse(res, {
     success: true,
     message: 'Printed documents confirmed successfully',
+    data: order,
+  });
+});
+
+export const patchOrderMeeting = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = idParamsSchema.parse(req.params);
+  const payload = meetingPayloadSchema.parse(req.body);
+  const order = await scheduleOrderMeeting(req.auth!, id, payload);
+
+  return sendResponse(res, {
+    success: true,
+    message: 'Meeting scheduled successfully',
+    data: order,
+  });
+});
+
+export const patchOrderMeetingConfirmation = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = idParamsSchema.parse(req.params);
+  const order = await confirmOrderMeeting(req.auth!, id);
+
+  return sendResponse(res, {
+    success: true,
+    message: 'Meeting confirmed successfully',
     data: order,
   });
 });

@@ -33,6 +33,16 @@ export interface IOrderTimelineEvent {
   tone: 'blue' | 'slate' | 'green' | 'red';
 }
 
+export interface IOrderMeeting {
+  status: 'scheduled' | 'confirmed';
+  date: string;
+  time: string;
+  scheduledByRole: 'admin' | 'company' | 'notary';
+  scheduledAt: Date;
+  confirmedByRole?: 'admin' | 'company' | 'notary';
+  confirmedAt?: Date;
+}
+
 export interface IOrder extends Document {
   orderNumber: string;
   title?: string;
@@ -57,6 +67,7 @@ export interface IOrder extends Document {
   specialInstructions?: string;
   notaryNotes?: string;
   notaryPrintedConfirmed: boolean;
+  meeting?: IOrderMeeting;
   documents: IOrderDocument[];
   timeline: IOrderTimelineEvent[];
   createdByAdminId?: Types.ObjectId;
@@ -79,6 +90,19 @@ const orderTimelineEventSchema = new Schema<IOrderTimelineEvent>(
     title: { type: String, required: true, trim: true },
     date: { type: Date, default: Date.now },
     tone: { type: String, enum: ['blue', 'slate', 'green', 'red'], default: 'blue' },
+  },
+  { _id: false },
+);
+
+const orderMeetingSchema = new Schema<IOrderMeeting>(
+  {
+    status: { type: String, enum: ['scheduled', 'confirmed'], required: true, default: 'scheduled' },
+    date: { type: String, required: true, trim: true },
+    time: { type: String, required: true, trim: true },
+    scheduledByRole: { type: String, enum: ['admin', 'company', 'notary'], required: true },
+    scheduledAt: { type: Date, required: true, default: Date.now },
+    confirmedByRole: { type: String, enum: ['admin', 'company', 'notary'] },
+    confirmedAt: { type: Date },
   },
   { _id: false },
 );
@@ -108,6 +132,7 @@ const orderSchema = new Schema<IOrder>(
     specialInstructions: { type: String, trim: true },
     notaryNotes: { type: String, trim: true },
     notaryPrintedConfirmed: { type: Boolean, default: false },
+    meeting: { type: orderMeetingSchema, required: false },
     documents: { type: [orderDocumentSchema], default: [] },
     timeline: { type: [orderTimelineEventSchema], default: [] },
     createdByAdminId: { type: Schema.Types.ObjectId, ref: 'AdminUser' },
