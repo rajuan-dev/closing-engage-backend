@@ -9,6 +9,7 @@ export interface ICompanyUser extends Document {
   status: 'Active' | 'Inactive' | 'Pending';
   address?: string;
   contactEmail?: string;
+  avatarUrl?: string;
   userName?: string;
   passwordHash?: string;
   adminVisiblePasswordCipher?: string;
@@ -33,6 +34,7 @@ const companyUserSchema = new Schema<ICompanyUser>(
     status: { type: String, enum: ['Active', 'Inactive', 'Pending'], default: 'Active' },
     address: { type: String },
     contactEmail: { type: String, trim: true, lowercase: true },
+    avatarUrl: { type: String, trim: true },
     userName: { type: String, trim: true, unique: true, sparse: true },
     passwordHash: { type: String },
     adminVisiblePasswordCipher: { type: String },

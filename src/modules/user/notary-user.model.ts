@@ -10,6 +10,7 @@ export interface INotaryUser extends Document {
   status: 'Active' | 'Inactive' | 'Pending';
   expiry?: string;
   serviceArea?: string;
+  avatarUrl?: string;
   userName?: string;
   passwordHash?: string;
   adminVisiblePasswordCipher?: string;
@@ -35,6 +36,7 @@ const notaryUserSchema = new Schema<INotaryUser>(
     status: { type: String, enum: ['Active', 'Inactive', 'Pending'], default: 'Active' },
     expiry: { type: String },
     serviceArea: { type: String },
+    avatarUrl: { type: String, trim: true },
     userName: { type: String, trim: true, unique: true, sparse: true },
     passwordHash: { type: String },
     adminVisiblePasswordCipher: { type: String },

@@ -80,6 +80,7 @@ const companyProfileSchema = z.object({
   companyName: z.string().trim().min(1).optional(),
   contactEmail: z.string().trim().email().optional(),
   address: z.string().trim().optional(),
+  avatarUrl: z.string().trim().optional(),
 });
 
 const notaryProfileSchema = z.object({
@@ -90,6 +91,7 @@ const notaryProfileSchema = z.object({
   license: z.string().trim().min(1).optional(),
   expiry: z.string().trim().optional(),
   serviceArea: z.string().trim().optional(),
+  avatarUrl: z.string().trim().optional(),
 });
 
 export const login = asyncHandler(async (req: Request, res: Response) => {

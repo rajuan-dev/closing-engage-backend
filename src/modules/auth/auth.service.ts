@@ -109,6 +109,7 @@ const sanitizeCompany = (company: ICompanyUser) => ({
   createdDate: formatDate(company.createdAt),
   address: company.address ?? '',
   contactEmail: company.contactEmail ?? '',
+  avatarUrl: company.avatarUrl ?? '',
   userName: company.userName ?? '',
   accountType: 'owner' as const,
   permissions: {
@@ -133,6 +134,7 @@ const sanitizeCompanyMember = (member: ITeamMember, company: ICompanyUser) => ({
   businessEmail: company.businessEmail,
   contactEmail: company.contactEmail ?? '',
   address: company.address ?? '',
+  avatarUrl: company.avatarUrl ?? '',
   permissions: member.permissions ?? {
     createOrders: true,
     viewOrders: true,
@@ -156,6 +158,7 @@ const sanitizeNotary = (notary: INotaryUser) => ({
   createdDate: formatDate(notary.createdAt),
   expiry: notary.expiry ?? '',
   serviceArea: notary.serviceArea ?? '',
+  avatarUrl: notary.avatarUrl ?? '',
   userName: notary.userName ?? '',
 });
 
@@ -570,6 +573,7 @@ export const updateCompanyProfile = async (
     companyName: string;
     contactEmail: string;
     address: string;
+    avatarUrl: string;
   }>,
 ) => {
   const company = await CompanyUser.findById(id);
@@ -584,6 +588,7 @@ export const updateCompanyProfile = async (
   if (updates.companyName !== undefined) company.companyName = updates.companyName;
   if (updates.contactEmail !== undefined) company.contactEmail = normalizeEmail(updates.contactEmail);
   if (updates.address !== undefined) company.address = updates.address;
+  if (updates.avatarUrl !== undefined) company.avatarUrl = updates.avatarUrl;
 
   await company.save();
   return sanitizeCompany(company);
@@ -599,6 +604,7 @@ export const updateNotaryProfile = async (
     license: string;
     expiry: string;
     serviceArea: string;
+    avatarUrl: string;
   }>,
 ) => {
   const notary = await NotaryUser.findById(id);
@@ -614,6 +620,7 @@ export const updateNotaryProfile = async (
   if (updates.license !== undefined) notary.license = updates.license;
   if (updates.expiry !== undefined) notary.expiry = updates.expiry;
   if (updates.serviceArea !== undefined) notary.serviceArea = updates.serviceArea;
+  if (updates.avatarUrl !== undefined) notary.avatarUrl = updates.avatarUrl;
 
   await notary.save();
   return sanitizeNotary(notary);
