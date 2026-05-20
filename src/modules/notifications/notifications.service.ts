@@ -3,6 +3,11 @@ import { Types } from 'mongoose';
 
 import { HttpError } from '../../core/http-error';
 import { logger } from '../../core/logger';
+import {
+  emitNotificationCreated,
+  emitNotificationRead,
+  emitNotificationsReadAll,
+} from '../communications/communications.socket';
 import { AdminUser } from '../auth/auth.model';
 import {
   INotification,
@@ -45,10 +50,13 @@ export const serializeNotification = (notification: INotification) => ({
 });
 
 export const createNotification = async (input: CreateNotificationInput) => {
-  return Notification.create({
+  const notification = await Notification.create({
     ...input,
     recipientId: new Types.ObjectId(input.recipientId),
   });
+
+  emitNotificationCreated(input.recipientRole, String(input.recipientId), serializeNotification(notification));
+  return notification;
 };
 
 export const createNotificationSafely = async (input: CreateNotificationInput): Promise<void> => {
@@ -96,6 +104,7 @@ export const markNotificationRead = async (auth: AuthContext, id: string) => {
     throw new HttpError(StatusCodes.NOT_FOUND, 'Notification not found');
   }
 
+  emitNotificationRead(auth.role, auth.id, notification._id.toString());
   return serializeNotification(notification);
 };
 
@@ -104,4 +113,6 @@ export const markAllNotificationsRead = async (auth: AuthContext) => {
     { recipientId: auth.id, recipientRole: auth.role, read: false },
     { read: true },
   );
+
+  emitNotificationsReadAll(auth.role, auth.id);
 };

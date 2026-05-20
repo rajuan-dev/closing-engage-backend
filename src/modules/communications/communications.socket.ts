@@ -4,6 +4,8 @@ import { Server } from 'socket.io';
 import { logger } from '../../core/logger';
 import { verifyAuthToken } from '../auth/auth.service';
 import { getThreadMessages, sendMessage, type CommunicationAuth } from './communications.service';
+import type { NotificationRecipientRole } from '../notifications/notifications.model';
+import type { serializeNotification } from '../notifications/notifications.service';
 
 let ioInstance: Server | null = null;
 
@@ -91,4 +93,26 @@ export const emitCommunicationMessage = (result: Awaited<ReturnType<typeof sendM
     target = target?.to(`user:notary:${result.thread.notaryId}`);
   }
   target?.emit('communications:message', result);
+};
+
+type NotificationPayload = ReturnType<typeof serializeNotification>;
+
+export const emitNotificationCreated = (
+  recipientRole: NotificationRecipientRole,
+  recipientId: string,
+  notification: NotificationPayload,
+) => {
+  ioInstance?.to(`user:${recipientRole}:${recipientId}`).emit('notifications:new', notification);
+};
+
+export const emitNotificationRead = (
+  recipientRole: NotificationRecipientRole,
+  recipientId: string,
+  notificationId: string,
+) => {
+  ioInstance?.to(`user:${recipientRole}:${recipientId}`).emit('notifications:read', { id: notificationId });
+};
+
+export const emitNotificationsReadAll = (recipientRole: NotificationRecipientRole, recipientId: string) => {
+  ioInstance?.to(`user:${recipientRole}:${recipientId}`).emit('notifications:read-all');
 };
