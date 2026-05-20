@@ -83,6 +83,15 @@ const serializeMeeting = (meeting?: IOrderMeeting | null) =>
       }
     : null;
 
+const enrichPortalOrderWithCompany = (
+  order: ReturnType<typeof serializePortalOrder>,
+  company?: { companyName?: string; avatarUrl?: string },
+) => ({
+  ...order,
+  companyName: company?.companyName || order.companyName,
+  companyAvatarUrl: company?.avatarUrl || '',
+});
+
 const orderLookupQuery = (id: string) => {
   const normalized = id.trim();
   const withHash = normalized.startsWith('#') ? normalized : `#${normalized}`;
@@ -182,6 +191,7 @@ export const serializeOrderDetail = (order: IOrder) => ({
 const serializePortalOrder = (order: IOrder) => ({
   id: order.orderNumber,
   clientName: order.clientName || order.signerName || '',
+  companyName: order.titleCompany,
   propertyAddress: order.propertyAddress,
   location: order.propertyAddress,
   notary: order.assignedNotaryName === 'Unassigned' ? '--' : order.assignedNotaryName,
@@ -208,7 +218,27 @@ export const listOrders = async (auth: AuthContext, filters: { status?: OrderSta
   }
 
   const orders = await Order.find(query).sort({ createdAt: -1 });
-  return auth.role === 'admin' ? orders.map(serializeOrderRow) : orders.map(serializePortalOrder);
+  if (auth.role === 'admin') {
+    return orders.map(serializeOrderRow);
+  }
+
+  const companyIds = Array.from(
+    new Set(
+      orders
+        .map((order) => order.companyId?.toString())
+        .filter((value): value is string => Boolean(value)),
+    ),
+  );
+
+  const companies = companyIds.length
+    ? await CompanyUser.find({ _id: { $in: companyIds } }).select('_id companyName avatarUrl').lean()
+    : [];
+
+  const companyMap = new Map(
+    companies.map((company) => [String(company._id), { companyName: company.companyName, avatarUrl: company.avatarUrl ?? '' }]),
+  );
+
+  return orders.map((order) => enrichPortalOrderWithCompany(serializePortalOrder(order), order.companyId ? companyMap.get(order.companyId.toString()) : undefined));
 };
 
 type OrderDocumentInput = Pick<IOrderDocument, 'name' | 'meta'> & {
@@ -357,7 +387,14 @@ export const createOrder = async (auth: AuthContext, payload: {
 
 export const getOrder = async (auth: AuthContext, id: string) => {
   const order = await findOrder(id, auth);
-  return serializeOrderDetail(order);
+  const company =
+    order.companyId ? await CompanyUser.findById(order.companyId).select('companyName avatarUrl').lean() : null;
+
+  return {
+    ...serializeOrderDetail(order),
+    companyName: company?.companyName || order.titleCompany,
+    companyAvatarUrl: company?.avatarUrl ?? '',
+  };
 };
 
 export const updateOrder = async (

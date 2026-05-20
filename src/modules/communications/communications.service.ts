@@ -55,6 +55,14 @@ const senderNameFor = async (auth: CommunicationAuth): Promise<string> => {
   return notary?.fullName || auth.email;
 };
 
+const getAdminProfile = async () => {
+  const admin = await AdminUser.findOne({ isActive: true }).select('fullName avatarUrl').sort({ updatedAt: -1, createdAt: -1 });
+  return {
+    name: admin?.fullName || 'Closing Engage Admin',
+    avatarUrl: admin?.avatarUrl || '',
+  };
+};
+
 const serializeMessage = (message: ICommunicationMessage) => ({
   id: message._id.toString(),
   threadId: message.threadId.toString(),
@@ -144,6 +152,7 @@ export const listThreads = async (auth: CommunicationAuth) => {
 
 export const getThreadMessages = async (auth: CommunicationAuth, orderNumber: string) => {
   const thread = await getOrCreateThreadForOrder(auth, orderNumber);
+  const adminProfile = await getAdminProfile();
 
   await CommunicationMessage.updateMany(
     { threadId: thread.id },
@@ -152,7 +161,11 @@ export const getThreadMessages = async (auth: CommunicationAuth, orderNumber: st
 
   const messages = await CommunicationMessage.find({ threadId: thread.id }).sort({ createdAt: 1 });
   return {
-    thread,
+    thread: {
+      ...thread,
+      adminName: adminProfile.name,
+      adminAvatarUrl: adminProfile.avatarUrl,
+    },
     messages: messages.map(serializeMessage),
   };
 };
