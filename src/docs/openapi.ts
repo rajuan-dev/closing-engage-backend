@@ -29,6 +29,8 @@ export const openApiDocument = {
     { name: 'Documents', description: 'Role-scoped document metadata, review, versioning, and signed URL endpoints' },
     { name: 'Notifications', description: 'Role-scoped notification inbox and read-state endpoints' },
     { name: 'Analytics', description: 'Admin-only operational analytics and trend endpoints' },
+    { name: 'Dashboard', description: 'Admin-only dashboard overview metrics and trend endpoints' },
+    { name: 'Search', description: 'Admin-only global dashboard search endpoints' },
     { name: 'Communications', description: 'Order-scoped real-time admin and assigned-notary messaging endpoints' },
     ...generatedTags,
   ],
@@ -803,6 +805,9 @@ export const openApiDocument = {
           loanType: { type: 'string', example: 'Refinance' },
           scanbacksRequired: { type: 'boolean', example: true },
           preferredNotaryName: { type: 'string', example: 'Sarah Jenkins' },
+          meeting: {
+            oneOf: [{ $ref: '#/components/schemas/OrderMeeting' }, { type: 'null' }],
+          },
         },
         required: ['id', 'clientName', 'propertyAddress', 'location', 'notary', 'status', 'date'],
       },
@@ -828,6 +833,9 @@ export const openApiDocument = {
           assignedNotaryId: { type: 'string', example: '682afc5f8d249f890fad6601' },
           specialInstructions: { type: 'string', example: 'Please ensure blue ink signatures.' },
           notaryNotes: { type: 'string', example: 'Signing completed without exceptions.' },
+          meeting: {
+            oneOf: [{ $ref: '#/components/schemas/OrderMeeting' }, { type: 'null' }],
+          },
           timeline: {
             type: 'array',
             items: { $ref: '#/components/schemas/OrderTimelineEvent' },
@@ -850,6 +858,27 @@ export const openApiDocument = {
           notaryEmail: { type: 'string', format: 'email', example: 'sarah.jenkins@example.com' },
         },
         required: ['notaryName'],
+      },
+      OrderMeeting: {
+        type: 'object',
+        properties: {
+          status: { type: 'string', enum: ['scheduled', 'confirmed'], example: 'scheduled' },
+          date: { type: 'string', example: 'May 31, 2026' },
+          time: { type: 'string', example: '9:30 AM' },
+          scheduledByRole: { type: 'string', enum: ['admin', 'company', 'notary'], example: 'notary' },
+          scheduledAt: { type: 'string', format: 'date-time' },
+          confirmedByRole: { type: 'string', enum: ['admin', 'company', 'notary'], nullable: true, example: 'company' },
+          confirmedAt: { type: 'string', format: 'date-time', nullable: true },
+        },
+        required: ['status', 'date', 'time', 'scheduledByRole', 'scheduledAt'],
+      },
+      OrderMeetingPayload: {
+        type: 'object',
+        properties: {
+          signingDate: { type: 'string', example: 'May 31, 2026' },
+          signingTime: { type: 'string', example: '9:30 AM' },
+        },
+        required: ['signingDate', 'signingTime'],
       },
       OrderTimelineEvent: {
         type: 'object',
@@ -1145,6 +1174,129 @@ export const openApiDocument = {
             type: 'object',
             properties: {
               data: { $ref: '#/components/schemas/NotificationItem' },
+            },
+            required: ['data'],
+          },
+        ],
+      },
+      DashboardOverviewResponse: {
+        allOf: [
+          { $ref: '#/components/schemas/SuccessEnvelope' },
+          {
+            type: 'object',
+            properties: {
+              data: {
+                type: 'object',
+                properties: {
+                  generatedAt: { type: 'string', format: 'date-time' },
+                  trendPeriod: { type: 'string', enum: ['7d', '30d', '90d'], example: '30d' },
+                  metrics: {
+                    type: 'object',
+                    properties: {
+                      totalCompanies: {
+                        type: 'object',
+                        properties: {
+                          value: { type: 'integer', example: 142 },
+                          note: { type: 'string', example: '+12%' },
+                        },
+                        required: ['value'],
+                      },
+                      totalNotaries: {
+                        type: 'object',
+                        properties: {
+                          value: { type: 'integer', example: 1208 },
+                          note: { type: 'string', example: '+4%' },
+                        },
+                        required: ['value'],
+                      },
+                      totalOrders: {
+                        type: 'object',
+                        properties: {
+                          value: { type: 'integer', example: 8492 },
+                        },
+                        required: ['value'],
+                      },
+                      pendingApprovalOrders: {
+                        type: 'object',
+                        properties: {
+                          value: { type: 'integer', example: 28 },
+                          note: { type: 'string', example: 'Alert' },
+                        },
+                        required: ['value'],
+                      },
+                      completedOrders: {
+                        type: 'object',
+                        properties: {
+                          value: { type: 'integer', example: 7814 },
+                          note: { type: 'string', example: '92%' },
+                        },
+                        required: ['value'],
+                      },
+                    },
+                    required: ['totalCompanies', 'totalNotaries', 'totalOrders', 'pendingApprovalOrders', 'completedOrders'],
+                  },
+                  activeUsersTrend: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        label: { type: 'string', example: 'Week 1' },
+                        value: { type: 'integer', example: 820 },
+                      },
+                      required: ['label', 'value'],
+                    },
+                  },
+                  quickActions: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        key: { type: 'string', example: 'assign-orders' },
+                        title: { type: 'string', example: 'Assign Orders' },
+                        description: { type: 'string', example: 'Route 12 unassigned files to available notaries' },
+                        tone: { type: 'string', example: 'slate' },
+                      },
+                      required: ['key', 'title', 'description', 'tone'],
+                    },
+                  },
+                  comparisonWindow: {
+                    type: 'object',
+                    properties: {
+                      currentStart: { type: 'string', format: 'date-time' },
+                      currentEnd: { type: 'string', format: 'date-time' },
+                      previousStart: { type: 'string', format: 'date-time' },
+                      previousEnd: { type: 'string', format: 'date-time' },
+                    },
+                    required: ['currentStart', 'currentEnd', 'previousStart', 'previousEnd'],
+                  },
+                },
+                required: ['generatedAt', 'trendPeriod', 'metrics', 'activeUsersTrend', 'quickActions', 'comparisonWindow'],
+              },
+            },
+            required: ['data'],
+          },
+        ],
+      },
+      SearchResult: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', example: '682afc5f8d249f890fad2230' },
+          title: { type: 'string', example: '#ORD-85856' },
+          subtitle: { type: 'string', example: 'Grand Peak Title · Sarah Jenkins' },
+          type: { type: 'string', enum: ['order', 'notary', 'document', 'company'], example: 'order' },
+        },
+        required: ['id', 'title', 'subtitle', 'type'],
+      },
+      SearchResultsResponse: {
+        allOf: [
+          { $ref: '#/components/schemas/SuccessEnvelope' },
+          {
+            type: 'object',
+            properties: {
+              data: {
+                type: 'array',
+                items: { $ref: '#/components/schemas/SearchResult' },
+              },
             },
             required: ['data'],
           },
@@ -2907,6 +3059,108 @@ export const openApiDocument = {
         },
       },
     },
+    '/orders/{id}/meeting': {
+      patch: {
+        tags: ['Orders'],
+        summary: 'Schedule or reschedule a closing meeting',
+        description:
+          'Admins and notaries can schedule the closing meeting for an order. The endpoint persists meeting state, updates the order timeline, and sends notifications to the company and admins.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            in: 'path',
+            name: 'id',
+            required: true,
+            schema: { type: 'string', example: '#ORD-90212' },
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/OrderMeetingPayload' },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Meeting scheduled successfully',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/OrderSingleResponse' },
+              },
+            },
+          },
+          '403': {
+            description: 'Company users cannot schedule meetings',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+          '404': {
+            description: 'Order not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/orders/{id}/meeting/confirm': {
+      patch: {
+        tags: ['Orders'],
+        summary: 'Confirm a scheduled closing meeting',
+        description:
+          'Company users and admins can confirm a previously scheduled meeting. The endpoint updates the meeting status, appends a timeline event, and notifies the assigned notary and admins.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            in: 'path',
+            name: 'id',
+            required: true,
+            schema: { type: 'string', example: '#ORD-90212' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Meeting confirmed successfully',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/OrderSingleResponse' },
+              },
+            },
+          },
+          '400': {
+            description: 'No scheduled meeting exists for this order',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+          '403': {
+            description: 'Only company users or admins can confirm meetings',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+          '404': {
+            description: 'Order not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
     '/documents': {
       get: {
         tags: ['Documents'],
@@ -3786,6 +4040,89 @@ export const openApiDocument = {
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+          '401': {
+            description: 'Invalid or missing token',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+          '403': {
+            description: 'Admin role is required',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/dashboard/overview': {
+      get: {
+        tags: ['Dashboard'],
+        summary: 'Fetch admin dashboard overview metrics and activity trend',
+        description:
+          'Returns the live admin dashboard payload used by the analytics cards, active user trend chart, quick actions, and comparison window metadata.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            in: 'query',
+            name: 'period',
+            schema: { type: 'string', enum: ['7d', '30d', '90d'], default: '30d' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Dashboard overview fetched',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/DashboardOverviewResponse' },
+              },
+            },
+          },
+          '401': {
+            description: 'Invalid or missing token',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+          '403': {
+            description: 'Admin role is required',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/search': {
+      get: {
+        tags: ['Search'],
+        summary: 'Run admin global search across orders, companies, notaries, and documents',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            in: 'query',
+            name: 'q',
+            schema: { type: 'string', example: 'Sarah' },
+            description: 'Search query. Empty values return an empty array.',
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Search results fetched',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/SearchResultsResponse' },
               },
             },
           },
