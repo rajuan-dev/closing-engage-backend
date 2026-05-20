@@ -929,10 +929,11 @@ export const openApiDocument = {
           orderId: { type: 'string', example: 'ORD-882190' },
           uploadDate: { type: 'string', example: 'Oct 24, 2023' },
           size: { type: 'string', example: '1.2 MB' },
-          status: { type: 'string', enum: ['Approved', 'Submitted', 'Pending', 'Verified'], example: 'Pending' },
+          status: { type: 'string', enum: ['Approved', 'Submitted', 'Pending', 'Verified', 'Rejected'], example: 'Pending' },
           uploadedBy: { type: 'string', example: 'Northway Holdings' },
+          uploaderRole: { type: 'string', enum: ['admin', 'company', 'notary', 'buyer', 'title-company'], example: 'notary' },
         },
-        required: ['id', 'name', 'orderId', 'uploadDate', 'size', 'status'],
+        required: ['id', 'name', 'orderId', 'uploadDate', 'size', 'status', 'uploaderRole'],
       },
       DocumentDetail: {
         type: 'object',

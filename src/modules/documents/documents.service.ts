@@ -227,6 +227,7 @@ export const serializeDocumentRecord = (document: IClosingDocument) => ({
   size: sizeLabelFromBytes(document.fileSize, document.sizeLabel),
   status: toPortalStatus(document.status),
   uploadedBy: document.uploadedByName,
+  uploaderRole: document.uploaderRole,
 });
 
 export const serializeDocumentDetail = (document: IClosingDocument) => ({
