@@ -5,7 +5,9 @@ import { HttpError } from '../../core/http-error';
 import { logger } from '../../core/logger';
 import {
   emitNotificationCreated,
+  emitNotificationDeleted,
   emitNotificationRead,
+  emitNotificationsCleared,
   emitNotificationsReadAll,
 } from '../communications/communications.socket';
 import { AdminUser } from '../auth/auth.model';
@@ -115,4 +117,28 @@ export const markAllNotificationsRead = async (auth: AuthContext) => {
   );
 
   emitNotificationsReadAll(auth.role, auth.id);
+};
+
+export const deleteNotification = async (auth: AuthContext, id: string) => {
+  const notification = await Notification.findOneAndDelete({
+    _id: id,
+    recipientId: auth.id,
+    recipientRole: auth.role,
+  });
+
+  if (!notification) {
+    throw new HttpError(StatusCodes.NOT_FOUND, 'Notification not found');
+  }
+
+  emitNotificationDeleted(auth.role, auth.id, notification._id.toString());
+  return serializeNotification(notification);
+};
+
+export const clearAllNotifications = async (auth: AuthContext) => {
+  await Notification.deleteMany({
+    recipientId: auth.id,
+    recipientRole: auth.role,
+  });
+
+  emitNotificationsCleared(auth.role, auth.id);
 };

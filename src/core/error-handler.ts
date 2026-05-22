@@ -11,6 +11,35 @@ interface ErrorPayload {
   error?: unknown;
 }
 
+const isMongoDuplicateKeyError = (
+  error: unknown,
+): error is Error & { code: number; keyPattern?: Record<string, number>; keyValue?: Record<string, unknown> } =>
+  typeof error === 'object' && error !== null && 'code' in error && (error as { code?: unknown }).code === 11000;
+
+const duplicateFieldMessage = (field: string, value?: unknown): string => {
+  if (field === 'businessEmail') {
+    return `Business email already exists${typeof value === 'string' ? `: ${value}` : ''}`;
+  }
+
+  if (field === 'contactEmail') {
+    return `Contact email already exists${typeof value === 'string' ? `: ${value}` : ''}`;
+  }
+
+  if (field === 'userName') {
+    return `Username already exists${typeof value === 'string' ? `: ${value}` : ''}`;
+  }
+
+  if (field === 'email') {
+    return `Email already exists${typeof value === 'string' ? `: ${value}` : ''}`;
+  }
+
+  if (field === 'publicId') {
+    return 'Generated public ID already exists. Please try again.';
+  }
+
+  return `${field} already exists${typeof value === 'string' ? `: ${value}` : ''}`;
+};
+
 export const handleError = (error: unknown): ErrorPayload => {
   if (error instanceof HttpError) {
     return {
@@ -25,6 +54,17 @@ export const handleError = (error: unknown): ErrorPayload => {
       statusCode: StatusCodes.BAD_REQUEST,
       message: 'Validation failed',
       error: error.flatten(),
+    };
+  }
+
+  if (isMongoDuplicateKeyError(error)) {
+    const field = Object.keys(error.keyPattern ?? {})[0] ?? Object.keys(error.keyValue ?? {})[0] ?? 'Record';
+    const value = error.keyValue?.[field];
+
+    return {
+      statusCode: StatusCodes.CONFLICT,
+      message: duplicateFieldMessage(field, value),
+      error: env.NODE_ENV === 'production' ? undefined : { keyPattern: error.keyPattern, keyValue: error.keyValue },
     };
   }
 

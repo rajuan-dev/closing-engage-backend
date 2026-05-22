@@ -116,3 +116,15 @@ export const emitNotificationRead = (
 export const emitNotificationsReadAll = (recipientRole: NotificationRecipientRole, recipientId: string) => {
   ioInstance?.to(`user:${recipientRole}:${recipientId}`).emit('notifications:read-all');
 };
+
+export const emitNotificationDeleted = (
+  recipientRole: NotificationRecipientRole,
+  recipientId: string,
+  notificationId: string,
+) => {
+  ioInstance?.to(`user:${recipientRole}:${recipientId}`).emit('notifications:deleted', { id: notificationId });
+};
+
+export const emitNotificationsCleared = (recipientRole: NotificationRecipientRole, recipientId: string) => {
+  ioInstance?.to(`user:${recipientRole}:${recipientId}`).emit('notifications:cleared');
+};

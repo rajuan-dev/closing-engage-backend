@@ -3,7 +3,13 @@ import { z } from 'zod';
 
 import { sendResponse } from '../../core/response';
 import { asyncHandler } from '../../utils/async-handler';
-import { listNotifications, markAllNotificationsRead, markNotificationRead } from './notifications.service';
+import {
+  clearAllNotifications,
+  deleteNotification,
+  listNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+} from './notifications.service';
 
 const idParamsSchema = z.object({
   id: z.string().trim().min(1),
@@ -36,5 +42,25 @@ export const patchAllNotificationsRead = asyncHandler(async (req: Request, res: 
   return sendResponse(res, {
     success: true,
     message: 'All notifications marked as read',
+  });
+});
+
+export const deleteSingleNotification = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = idParamsSchema.parse(req.params);
+  const notification = await deleteNotification(req.auth!, id);
+
+  return sendResponse(res, {
+    success: true,
+    message: 'Notification cleared successfully',
+    data: notification,
+  });
+});
+
+export const deleteAllNotifications = asyncHandler(async (req: Request, res: Response) => {
+  await clearAllNotifications(req.auth!);
+
+  return sendResponse(res, {
+    success: true,
+    message: 'All notifications cleared successfully',
   });
 });
