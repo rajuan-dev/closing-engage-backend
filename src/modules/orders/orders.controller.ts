@@ -7,6 +7,7 @@ import { sendResponse } from '../../core/response';
 import { asyncHandler } from '../../utils/async-handler';
 import { loanTypes, notaryPreferences, orderPriorities, orderStatuses } from './orders.model';
 import {
+  acceptOpenOrder,
   assignNotary,
   confirmOrderMeeting,
   confirmNotaryPrintedDocuments,
@@ -84,11 +85,22 @@ const meetingPayloadSchema = z.object({
   signingTime: nonEmpty,
 });
 
-const assignNotaryPayloadSchema = z.object({
-  notaryName: nonEmpty,
-  notaryId: z.string().trim().optional(),
-  notaryEmail: z.string().trim().email().optional(),
-});
+const assignNotaryPayloadSchema = z
+  .object({
+    notaryName: z.string().trim().optional(),
+    notaryId: z.string().trim().optional(),
+    notaryEmail: z.string().trim().email().optional(),
+    openForAll: z.boolean().optional(),
+  })
+  .superRefine((payload, ctx) => {
+    if (!payload.openForAll && !payload.notaryName?.trim() && !payload.notaryId?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Notary name or notaryId is required',
+        path: ['notaryName'],
+      });
+    }
+  });
 
 const combineAddress = (payload: z.infer<typeof orderPayloadSchema>): string | undefined => {
   const propertyAddress = payload.propertyAddress?.trim();
@@ -269,6 +281,17 @@ export const patchOrderAssignment = asyncHandler(async (req: Request, res: Respo
   return sendResponse(res, {
     success: true,
     message: 'Order notary assignment updated successfully',
+    data: order,
+  });
+});
+
+export const patchAcceptOpenOrder = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = idParamsSchema.parse(req.params);
+  const order = await acceptOpenOrder(req.auth!, id);
+
+  return sendResponse(res, {
+    success: true,
+    message: 'Open order accepted successfully',
     data: order,
   });
 });

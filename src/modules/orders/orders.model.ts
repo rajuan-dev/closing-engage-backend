@@ -61,6 +61,7 @@ export interface IOrder extends Document {
   priority: OrderPriority;
   notaryPreference: NotaryPreference;
   preferredNotaryName?: string;
+  openForAll: boolean;
   assignedNotaryId?: Types.ObjectId;
   assignedNotaryName: string;
   avatarKey: 'none' | 'jane' | 'mark';
@@ -126,6 +127,7 @@ const orderSchema = new Schema<IOrder>(
     priority: { type: String, enum: orderPriorities, default: 'Standard' },
     notaryPreference: { type: String, enum: notaryPreferences, default: 'First available' },
     preferredNotaryName: { type: String, trim: true },
+    openForAll: { type: Boolean, default: false, index: true },
     assignedNotaryId: { type: Schema.Types.ObjectId, ref: 'NotaryUser', index: true },
     assignedNotaryName: { type: String, default: 'Unassigned', trim: true },
     avatarKey: { type: String, enum: ['none', 'jane', 'mark'], default: 'none' },

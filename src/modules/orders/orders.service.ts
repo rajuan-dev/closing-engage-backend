@@ -4,7 +4,11 @@ import { Types } from 'mongoose';
 import { HttpError } from '../../core/http-error';
 import { buildDocumentS3Key } from '../../utils/s3';
 import { ClosingDocument } from '../documents/documents.model';
-import { createNotificationSafely, notifyAdminsSafely } from '../notifications/notifications.service';
+import {
+  createNotificationSafely,
+  notifyActiveNotariesSafely,
+  notifyAdminsSafely,
+} from '../notifications/notifications.service';
 import { CompanyUser } from '../user/company-user.model';
 import { NotaryUser } from '../user/notary-user.model';
 import { IOrder, IOrderDocument, IOrderMeeting, LoanType, NotaryPreference, Order, OrderPriority, OrderStatus } from './orders.model';
@@ -110,6 +114,17 @@ const scopedQuery = (auth: AuthContext, base: Record<string, unknown> = {}) => {
   return { ...base, assignedNotaryId: auth.id };
 };
 
+const scopedOrderQuery = (auth: AuthContext, base: Record<string, unknown> = {}) => {
+  if (auth.role !== 'notary') {
+    return scopedQuery(auth, base);
+  }
+
+  return {
+    ...base,
+    $or: [{ assignedNotaryId: auth.id }, { openForAll: true }],
+  };
+};
+
 const assertCompanyPermission = (
   auth: AuthContext,
   permission: 'createOrders' | 'viewOrders' | 'downloadDocuments',
@@ -124,7 +139,7 @@ const assertCompanyPermission = (
 
 const findOrder = async (id: string, auth: AuthContext): Promise<IOrder> => {
   assertCompanyPermission(auth, 'viewOrders', 'You do not have permission to view orders');
-  const order = await Order.findOne(scopedQuery(auth, orderLookupQuery(id)));
+  const order = await Order.findOne(scopedOrderQuery(auth, orderLookupQuery(id)));
 
   if (!order) {
     throw new HttpError(StatusCodes.NOT_FOUND, 'Order not found');
@@ -169,6 +184,7 @@ export const serializeOrderDetail = (order: IOrder) => ({
   notary: order.assignedNotaryName === 'Unassigned' ? '--' : order.assignedNotaryName,
   assignedNotaryName: order.assignedNotaryName,
   assignedNotaryId: order.assignedNotaryId?.toString() ?? '',
+  openForAll: order.openForAll,
   avatarKey: order.avatarKey,
   specialInstructions: order.specialInstructions ?? '',
   notaryNotes: order.notaryNotes ?? '',
@@ -202,12 +218,13 @@ const serializePortalOrder = (order: IOrder) => ({
   scanbacksRequired: order.scanbacksRequired,
   preferredNotaryName: order.preferredNotaryName ?? '',
   notaryPrintedConfirmed: order.notaryPrintedConfirmed ?? false,
+  openForAll: order.openForAll,
   meeting: serializeMeeting(order.meeting),
 });
 
 export const listOrders = async (auth: AuthContext, filters: { status?: OrderStatus; search?: string }) => {
   assertCompanyPermission(auth, 'viewOrders', 'You do not have permission to view orders');
-  const query: Record<string, unknown> = scopedQuery(auth);
+  const query: Record<string, unknown> = scopedOrderQuery(auth);
 
   if (filters.status) {
     query.status = filters.status;
@@ -509,20 +526,56 @@ export const updateOrderStatus = async (auth: AuthContext, id: string, status: O
 export const assignNotary = async (
   auth: AuthContext,
   id: string,
-  payload: { notaryName: string; notaryId?: string; notaryEmail?: string },
+  payload: { notaryName?: string; notaryId?: string; notaryEmail?: string; openForAll?: boolean },
 ) => {
   if (auth.role !== 'admin') {
     throw new HttpError(StatusCodes.FORBIDDEN, 'Only admins can assign notaries');
   }
 
   const order = await findOrder(id, auth);
+
+  if (payload.openForAll) {
+    order.assignedNotaryId = undefined;
+    order.assignedNotaryName = 'Open for All';
+    order.avatarKey = 'none';
+    order.openForAll = true;
+    order.status = 'Received';
+    pushTimeline(order, 'Order opened to all notaries', 'slate');
+
+    await order.save();
+
+    void notifyActiveNotariesSafely({
+      title: 'Open Order Available',
+      message: `${order.orderNumber} is open for all notaries. Claim it from your notifications before another notary accepts it.`,
+      type: 'order',
+      linkId: order.orderNumber,
+    });
+
+    if (order.companyId) {
+      void createNotificationSafely({
+        recipientId: order.companyId,
+        recipientRole: 'company',
+        title: 'Order Opened to All Notaries',
+        message: `${order.orderNumber} is now available for the first notary to accept.`,
+        type: 'order',
+        linkId: order.orderNumber,
+      });
+    }
+
+    return serializeOrderRow(order);
+  }
+
   let notaryId = payload.notaryId;
-  let notaryName = payload.notaryName;
+  let notaryName = payload.notaryName?.trim() || '';
 
   if (!notaryId) {
+    if (!notaryName) {
+      throw new HttpError(StatusCodes.BAD_REQUEST, 'Notary name is required');
+    }
+
     const notary = await NotaryUser.findOne({
       status: { $ne: 'Inactive' },
-      $or: [{ fullName: payload.notaryName }, ...(payload.notaryEmail ? [{ email: payload.notaryEmail }] : [])],
+      $or: [{ fullName: notaryName }, ...(payload.notaryEmail ? [{ email: payload.notaryEmail }] : [])],
     }).collation({ locale: 'en', strength: 2 });
 
     if (notary) {
@@ -533,6 +586,7 @@ export const assignNotary = async (
 
   order.assignedNotaryName = notaryName;
   order.avatarKey = avatarForNotary(notaryName);
+  order.openForAll = false;
   order.status = 'Assigned';
   if (notaryId && Types.ObjectId.isValid(notaryId)) {
     order.assignedNotaryId = new Types.ObjectId(notaryId);
@@ -564,6 +618,71 @@ export const assignNotary = async (
   }
 
   return serializeOrderRow(order);
+};
+
+export const acceptOpenOrder = async (auth: AuthContext, id: string) => {
+  if (auth.role !== 'notary') {
+    throw new HttpError(StatusCodes.FORBIDDEN, 'Only notaries can accept open orders');
+  }
+
+  const notary = await NotaryUser.findById(auth.id).select('_id fullName status');
+  if (!notary || notary.status === 'Inactive') {
+    throw new HttpError(StatusCodes.UNAUTHORIZED, 'Active notary account not found');
+  }
+
+  const alreadyAssignedToMe = await Order.findOne({
+    ...orderLookupQuery(id),
+    assignedNotaryId: auth.id,
+  });
+
+  if (alreadyAssignedToMe) {
+    return serializePortalOrder(alreadyAssignedToMe);
+  }
+
+  const claimedOrder = await Order.findOneAndUpdate(
+    {
+      ...orderLookupQuery(id),
+      openForAll: true,
+      $or: [{ assignedNotaryId: { $exists: false } }, { assignedNotaryId: null }],
+    },
+    {
+      $set: {
+        assignedNotaryId: notary._id,
+        assignedNotaryName: notary.fullName,
+        avatarKey: avatarForNotary(notary.fullName),
+        openForAll: false,
+        status: 'Assigned',
+      },
+    },
+    { new: true },
+  );
+
+  if (!claimedOrder) {
+    throw new HttpError(StatusCodes.CONFLICT, 'Order is already accepted by another notary.');
+  }
+
+  pushTimeline(claimedOrder, `Order accepted by ${notary.fullName}`, 'green');
+  await claimedOrder.save();
+
+  if (claimedOrder.companyId) {
+    void createNotificationSafely({
+      recipientId: claimedOrder.companyId,
+      recipientRole: 'company',
+      title: 'Order Accepted by Notary',
+      message: `${notary.fullName} accepted ${claimedOrder.orderNumber}.`,
+      type: 'order',
+      linkId: claimedOrder.orderNumber,
+    });
+  }
+
+  void notifyAdminsSafely({
+    title: 'Order Accepted by Notary',
+    message: `${notary.fullName} accepted ${claimedOrder.orderNumber}.`,
+    type: 'order',
+    linkId: claimedOrder.orderNumber,
+  });
+
+  return serializePortalOrder(claimedOrder);
 };
 
 export const confirmNotaryPrintedDocuments = async (auth: AuthContext, id: string) => {

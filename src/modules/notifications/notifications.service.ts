@@ -11,6 +11,7 @@ import {
   emitNotificationsReadAll,
 } from '../communications/communications.socket';
 import { AdminUser } from '../auth/auth.model';
+import { NotaryUser } from '../user/notary-user.model';
 import {
   INotification,
   Notification,
@@ -83,6 +84,25 @@ export const notifyAdminsSafely = async (input: Omit<CreateNotificationInput, 'r
     );
   } catch (error) {
     logger.error({ err: error, input }, 'Admin notification fanout failed');
+  }
+};
+
+export const notifyActiveNotariesSafely = async (
+  input: Omit<CreateNotificationInput, 'recipientId' | 'recipientRole'>,
+) => {
+  try {
+    const notaries = await NotaryUser.find({ status: { $ne: 'Inactive' } }).select('_id');
+    await Promise.all(
+      notaries.map((notary) =>
+        createNotification({
+          ...input,
+          recipientId: notary._id,
+          recipientRole: 'notary',
+        }),
+      ),
+    );
+  } catch (error) {
+    logger.error({ err: error, input }, 'Notary notification fanout failed');
   }
 };
 
