@@ -15,6 +15,7 @@ router.delete('/:id', orderController.removeOrder);
 router.patch('/:id/status', orderController.patchOrderStatus);
 router.patch('/:id/notary-status', requireNotaryAuth, orderController.patchNotaryOrderStatus);
 router.patch('/:id/assign-notary', orderController.patchOrderAssignment);
+router.patch('/:id/accept-open', requireNotaryAuth, orderController.patchAcceptOpenOrder);
 router.patch('/:id/printed-confirmation', orderController.patchOrderPrintedConfirmation);
 router.patch('/:id/meeting', orderController.patchOrderMeeting);
 router.patch('/:id/meeting/confirm', orderController.patchOrderMeetingConfirmation);
