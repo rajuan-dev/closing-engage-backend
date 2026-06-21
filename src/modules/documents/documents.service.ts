@@ -135,7 +135,7 @@ const documentScopeQuery = async (auth: AuthContext): Promise<DocumentQuery> => 
         {
           $or: [
             { uploaderRole: { $ne: 'notary' } },
-            { status: { $in: ['Approved', 'Verified'] } },
+            { status: { $in: ['Approved', 'Verified', 'Submitted'] } },
           ],
         },
       ],
