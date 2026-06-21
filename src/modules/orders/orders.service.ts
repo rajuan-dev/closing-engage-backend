@@ -160,13 +160,53 @@ export const serializeOrderRow = (order: IOrder): OrderRow => [
 ];
 
 export const serializeOrderDetail = async (order: IOrder) => {
-  const closingDocs = await ClosingDocument.find({ orderNumber: order.orderNumber }).select('_id fileName').lean();
-  const closingDocsMap = new Map(closingDocs.map((doc) => [doc.fileName.toLowerCase(), doc._id.toString()]));
+  const closingDocs = await ClosingDocument.find({ orderNumber: order.orderNumber }).lean();
+  const closingDocsMap = new Map(closingDocs.map((doc) => [doc.fileName.toLowerCase(), doc]));
 
   let notaryAvatarUrl = '';
   if (order.assignedNotaryId) {
     const notary = await NotaryUser.findById(order.assignedNotaryId).select('avatarUrl').lean();
     notaryAvatarUrl = notary?.avatarUrl ?? '';
+  }
+
+  const seenNames = new Set<string>();
+  const serializedDocs = order.documents.map((document) => {
+    const docNameLower = document.name.toLowerCase();
+    seenNames.add(docNameLower);
+    const dbDoc = closingDocsMap.get(docNameLower);
+    return {
+      id: dbDoc?._id.toString() || '',
+      name: document.name,
+      meta: document.meta,
+      uploadedBy: document.uploadedBy,
+      uploadedAt: document.uploadedAt.toISOString(),
+    };
+  });
+
+  for (const doc of closingDocs) {
+    const docNameLower = doc.fileName.toLowerCase();
+    if (!seenNames.has(docNameLower)) {
+      seenNames.add(docNameLower);
+      
+      let uploadedBy: 'Admin' | 'Title Company' | 'Notary' = 'Admin';
+      if (doc.uploaderRole === 'notary') {
+        uploadedBy = 'Notary';
+      } else if (doc.uploaderRole === 'company' || doc.uploaderRole === 'title-company') {
+        uploadedBy = 'Title Company';
+      }
+
+      const meta = doc.uploaderRole === 'notary'
+        ? `${sizeLabelFromBytes(doc.fileSize, doc.sizeLabel)} • Scanback submitted`
+        : (doc.sizeLabel || sizeLabelFromBytes(doc.fileSize));
+
+      serializedDocs.push({
+        id: doc._id.toString(),
+        name: doc.fileName,
+        meta,
+        uploadedBy,
+        uploadedAt: doc.createdAt.toISOString(),
+      });
+    }
   }
 
   return {
@@ -201,13 +241,7 @@ export const serializeOrderDetail = async (order: IOrder) => {
     notaryNotes: order.notaryNotes ?? '',
     notaryPrintedConfirmed: order.notaryPrintedConfirmed ?? false,
     meeting: serializeMeeting(order.meeting),
-    documents: order.documents.map((document) => ({
-      id: closingDocsMap.get(document.name.toLowerCase()) || '',
-      name: document.name,
-      meta: document.meta,
-      uploadedBy: document.uploadedBy,
-      uploadedAt: document.uploadedAt.toISOString(),
-    })),
+    documents: serializedDocs,
     timeline: order.timeline.map((event) => ({
       title: event.title,
       date: timelineDate(event.date),
