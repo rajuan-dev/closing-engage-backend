@@ -180,6 +180,7 @@ export const serializeOrderDetail = async (order: IOrder) => {
       meta: document.meta,
       uploadedBy: document.uploadedBy,
       uploadedAt: document.uploadedAt.toISOString(),
+      status: dbDoc?.status || (document.uploadedBy === 'Notary' ? 'Submitted' : 'Approved'),
     };
   });
 
@@ -205,6 +206,7 @@ export const serializeOrderDetail = async (order: IOrder) => {
         meta,
         uploadedBy,
         uploadedAt: doc.createdAt.toISOString(),
+        status: doc.status,
       });
     }
   }
