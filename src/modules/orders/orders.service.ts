@@ -159,50 +159,63 @@ export const serializeOrderRow = (order: IOrder): OrderRow => [
   order.avatarKey,
 ];
 
-export const serializeOrderDetail = (order: IOrder) => ({
-  id: order.orderNumber,
-  row: serializeOrderRow(order),
-  title: order.title ?? '',
-  titleCompany: order.titleCompany,
-  companyInitials: order.companyInitials,
-  companyId: order.companyId?.toString() ?? '',
-  clientName: order.clientName || order.signerName || '',
-  signerName: order.signerName ?? '',
-  signerPhone: order.signerPhone ?? '',
-  propertyAddress: order.propertyAddress,
-  location: order.propertyAddress,
-  signingDate: order.signingDate,
-  date: order.signingDate,
-  signingTime: order.signingTime,
-  time: order.signingTime,
-  loanType: order.loanType ?? '',
-  scanbacksRequired: order.scanbacksRequired,
-  status: order.status,
-  priority: order.priority,
-  notaryPreference: order.notaryPreference,
-  preferredNotaryName: order.preferredNotaryName ?? '',
-  notary: order.assignedNotaryName === 'Unassigned' ? '--' : order.assignedNotaryName,
-  assignedNotaryName: order.assignedNotaryName,
-  assignedNotaryId: order.assignedNotaryId?.toString() ?? '',
-  openForAll: order.openForAll,
-  avatarKey: order.avatarKey,
-  specialInstructions: order.specialInstructions ?? '',
-  notaryNotes: order.notaryNotes ?? '',
-  notaryPrintedConfirmed: order.notaryPrintedConfirmed ?? false,
-  meeting: serializeMeeting(order.meeting),
-  documents: order.documents.map((document) => ({
-    name: document.name,
-    meta: document.meta,
-    uploadedBy: document.uploadedBy,
-    uploadedAt: document.uploadedAt.toISOString(),
-  })),
-  timeline: order.timeline.map((event) => ({
-    title: event.title,
-    date: timelineDate(event.date),
-    tone: event.tone,
-  })),
-  createdDate: formatDate(order.createdAt),
-});
+export const serializeOrderDetail = async (order: IOrder) => {
+  const closingDocs = await ClosingDocument.find({ orderNumber: order.orderNumber }).select('_id fileName').lean();
+  const closingDocsMap = new Map(closingDocs.map((doc) => [doc.fileName.toLowerCase(), doc._id.toString()]));
+
+  let notaryAvatarUrl = '';
+  if (order.assignedNotaryId) {
+    const notary = await NotaryUser.findById(order.assignedNotaryId).select('avatarUrl').lean();
+    notaryAvatarUrl = notary?.avatarUrl ?? '';
+  }
+
+  return {
+    id: order.orderNumber,
+    row: serializeOrderRow(order),
+    title: order.title ?? '',
+    titleCompany: order.titleCompany,
+    companyInitials: order.companyInitials,
+    companyId: order.companyId?.toString() ?? '',
+    clientName: order.clientName || order.signerName || '',
+    signerName: order.signerName ?? '',
+    signerPhone: order.signerPhone ?? '',
+    propertyAddress: order.propertyAddress,
+    location: order.propertyAddress,
+    signingDate: order.signingDate,
+    date: order.signingDate,
+    signingTime: order.signingTime,
+    time: order.signingTime,
+    loanType: order.loanType ?? '',
+    scanbacksRequired: order.scanbacksRequired,
+    status: order.status,
+    priority: order.priority,
+    notaryPreference: order.notaryPreference,
+    preferredNotaryName: order.preferredNotaryName ?? '',
+    notary: order.assignedNotaryName === 'Unassigned' ? '--' : order.assignedNotaryName,
+    assignedNotaryName: order.assignedNotaryName,
+    assignedNotaryId: order.assignedNotaryId?.toString() ?? '',
+    notaryAvatarUrl,
+    openForAll: order.openForAll,
+    avatarKey: order.avatarKey,
+    specialInstructions: order.specialInstructions ?? '',
+    notaryNotes: order.notaryNotes ?? '',
+    notaryPrintedConfirmed: order.notaryPrintedConfirmed ?? false,
+    meeting: serializeMeeting(order.meeting),
+    documents: order.documents.map((document) => ({
+      id: closingDocsMap.get(document.name.toLowerCase()) || '',
+      name: document.name,
+      meta: document.meta,
+      uploadedBy: document.uploadedBy,
+      uploadedAt: document.uploadedAt.toISOString(),
+    })),
+    timeline: order.timeline.map((event) => ({
+      title: event.title,
+      date: timelineDate(event.date),
+      tone: event.tone,
+    })),
+    createdDate: formatDate(order.createdAt),
+  };
+};
 
 const serializePortalOrder = (order: IOrder) => ({
   id: order.orderNumber,
@@ -408,7 +421,7 @@ export const getOrder = async (auth: AuthContext, id: string) => {
     order.companyId ? await CompanyUser.findById(order.companyId).select('companyName avatarUrl').lean() : null;
 
   return {
-    ...serializeOrderDetail(order),
+    ...(await serializeOrderDetail(order)),
     companyName: company?.companyName || order.titleCompany,
     companyAvatarUrl: company?.avatarUrl ?? '',
   };
@@ -716,7 +729,7 @@ export const confirmNotaryPrintedDocuments = async (auth: AuthContext, id: strin
     });
   }
 
-  return serializeOrderDetail(order);
+  return await serializeOrderDetail(order);
 };
 
 export const scheduleOrderMeeting = async (
@@ -767,7 +780,7 @@ export const scheduleOrderMeeting = async (
     linkId: order.orderNumber,
   });
 
-  return serializeOrderDetail(order);
+  return await serializeOrderDetail(order);
 };
 
 export const confirmOrderMeeting = async (auth: AuthContext, id: string) => {
@@ -782,7 +795,7 @@ export const confirmOrderMeeting = async (auth: AuthContext, id: string) => {
   }
 
   if (order.meeting.status === 'confirmed') {
-    return serializeOrderDetail(order);
+    return await serializeOrderDetail(order);
   }
 
   order.meeting.status = 'confirmed';
@@ -821,10 +834,10 @@ export const confirmOrderMeeting = async (auth: AuthContext, id: string) => {
     linkId: order.orderNumber,
   });
 
-  return serializeOrderDetail(order);
+  return await serializeOrderDetail(order);
 };
 
 export const listOrderTimeline = async (auth: AuthContext, id: string) => {
   const order = await findOrder(id, auth);
-  return serializeOrderDetail(order).timeline;
+  return (await serializeOrderDetail(order)).timeline;
 };
