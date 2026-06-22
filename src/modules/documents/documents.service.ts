@@ -435,16 +435,29 @@ export const getDocument = async (auth: AuthContext, id: string) => {
   return serializeDocumentDetail(document);
 };
 
+const NOTARY_DELETABLE_STATUSES: DocumentStatus[] = ['Submitted', 'Rejected', 'Pending Review', 'Pending'];
+
 export const deleteDocument = async (auth: AuthContext, id: string) => {
-  if (auth.role !== 'admin') {
-    throw new HttpError(StatusCodes.FORBIDDEN, 'Only admins can delete documents');
+  if (auth.role === 'company') {
+    throw new HttpError(StatusCodes.FORBIDDEN, 'You do not have permission to delete documents');
   }
 
-  const document = await ClosingDocument.findByIdAndDelete(id);
+  const document = await ClosingDocument.findById(id);
   if (!document) {
     throw new HttpError(StatusCodes.NOT_FOUND, 'Document not found');
   }
 
+  if (auth.role === 'notary') {
+    const isOwner = document.uploaderRole === 'notary' && document.uploadedBy?.toString() === auth.id;
+    if (!isOwner) {
+      throw new HttpError(StatusCodes.FORBIDDEN, 'You can only delete your own scanback documents');
+    }
+    if (!NOTARY_DELETABLE_STATUSES.includes(document.status)) {
+      throw new HttpError(StatusCodes.FORBIDDEN, 'Approved documents are locked and cannot be deleted');
+    }
+  }
+
+  await document.deleteOne();
   await deleteS3ObjectSafely(document.s3Key);
 };
 

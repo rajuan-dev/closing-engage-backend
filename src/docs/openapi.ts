@@ -3404,8 +3404,9 @@ export const openApiDocument = {
       },
       delete: {
         tags: ['Documents'],
-        summary: 'Delete a document as an admin',
-        description: 'The database delete completes even if S3 object cleanup fails; S3 cleanup failure is logged.',
+        summary: 'Delete a document',
+        description:
+          'Admins can delete any document. Notaries can delete their own scanback documents (uploadedBy matches the caller) only while the status is one of Submitted, Rejected, Pending Review, or Pending; once a document is Approved or Verified it is locked and cannot be deleted. Company users cannot delete documents. The database delete completes even if S3 object cleanup fails; S3 cleanup failure is logged.',
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -3425,7 +3426,8 @@ export const openApiDocument = {
             },
           },
           '403': {
-            description: 'Admin role required',
+            description:
+              'Caller is not permitted to delete this document (not an admin, not the owning notary, or the document is already approved/locked)',
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ErrorEnvelope' },
