@@ -2,6 +2,7 @@ import { Document, Schema, Types, model } from 'mongoose';
 
 export type NotaryScreeningStatus = 'Pending' | 'Verified' | 'Failed';
 export type NotaryCredentialVerification = 'Auto-Verified' | 'Manual Review';
+export type NotaryCredentialStatus = 'Pending' | 'Approved' | 'Rejected';
 
 export interface INotaryCredential {
   _id: Types.ObjectId;
@@ -9,6 +10,8 @@ export interface INotaryCredential {
   issuer: string;
   uploadDate: string;
   verification: NotaryCredentialVerification;
+  status: NotaryCredentialStatus;
+  reviewedAt?: Date;
 }
 
 export interface INotaryUser extends Document {
@@ -56,6 +59,12 @@ const notaryCredentialSchema = new Schema<INotaryCredential>(
       enum: ['Auto-Verified', 'Manual Review'],
       default: 'Manual Review',
     },
+    status: {
+      type: String,
+      enum: ['Pending', 'Approved', 'Rejected'],
+      default: 'Pending',
+    },
+    reviewedAt: { type: Date },
   },
   { timestamps: true },
 );

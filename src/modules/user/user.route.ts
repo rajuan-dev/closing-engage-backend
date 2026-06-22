@@ -17,4 +17,7 @@ router.post('/notaries', userController.postNotary);
 router.patch('/notaries/:id', userController.patchNotary);
 router.delete('/notaries/:id', userController.removeNotary);
 
+router.get('/notaries/:id/credentials', userController.getNotaryCredentials);
+router.patch('/notaries/:id/credentials/:credentialId', userController.reviewCredential);
+
 export const userRouter = router;

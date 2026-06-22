@@ -5,6 +5,10 @@ import { z } from 'zod';
 import { sendResponse } from '../../core/response';
 import { asyncHandler } from '../../utils/async-handler';
 import {
+  getNotaryCredentialsByAdmin,
+  reviewNotaryCredential,
+} from '../notary/notary-credentials.service';
+import {
   createCompany,
   createNotary,
   deleteCompany,
@@ -130,5 +134,34 @@ export const removeNotary = asyncHandler(async (req: Request, res: Response) => 
   return sendResponse(res, {
     success: true,
     message: 'Notary user deleted successfully',
+  });
+});
+
+const credentialReviewSchema = z.object({
+  status: z.enum(['Approved', 'Rejected']),
+});
+
+export const getNotaryCredentials = asyncHandler(async (req: Request, res: Response) => {
+  const credentials = await getNotaryCredentialsByAdmin(String(req.params.id));
+
+  return sendResponse(res, {
+    success: true,
+    message: 'Notary credentials fetched successfully',
+    data: credentials,
+  });
+});
+
+export const reviewCredential = asyncHandler(async (req: Request, res: Response) => {
+  const { status } = credentialReviewSchema.parse(req.body);
+  const credentials = await reviewNotaryCredential(
+    String(req.params.id),
+    String(req.params.credentialId),
+    status,
+  );
+
+  return sendResponse(res, {
+    success: true,
+    message: `Credential ${status.toLowerCase()} successfully`,
+    data: credentials,
   });
 });

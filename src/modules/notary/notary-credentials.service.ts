@@ -3,6 +3,7 @@ import { StatusCodes } from 'http-status-codes';
 import { HttpError } from '../../core/http-error';
 import {
   INotaryUser,
+  NotaryCredentialStatus,
   NotaryCredentialVerification,
   NotaryScreeningStatus,
   NotaryUser,
@@ -40,6 +41,7 @@ const serializeCredentials = (notary: INotaryUser) => ({
     issuer: credential.issuer,
     uploadDate: credential.uploadDate,
     verification: credential.verification,
+    status: credential.status ?? 'Pending',
   })),
 });
 
@@ -84,8 +86,41 @@ export const addNotaryCredential = async (id: string, input: CredentialInput) =>
     issuer: input.issuer,
     uploadDate: todayLabel(),
     verification: input.verification ?? 'Manual Review',
+    status: 'Pending',
   });
 
   await notary.save();
+  return serializeCredentials(notary);
+};
+
+/* ── Admin-facing (notary may be Active or Inactive) ── */
+
+export const getNotaryCredentialsByAdmin = async (notaryId: string) => {
+  const notary = await NotaryUser.findById(notaryId);
+  if (!notary) {
+    throw new HttpError(StatusCodes.NOT_FOUND, 'Notary user not found');
+  }
+  return serializeCredentials(notary);
+};
+
+export const reviewNotaryCredential = async (
+  notaryId: string,
+  credentialId: string,
+  status: Extract<NotaryCredentialStatus, 'Approved' | 'Rejected'>,
+) => {
+  const notary = await NotaryUser.findById(notaryId);
+  if (!notary) {
+    throw new HttpError(StatusCodes.NOT_FOUND, 'Notary user not found');
+  }
+
+  const credential = notary.credentials?.id(credentialId);
+  if (!credential) {
+    throw new HttpError(StatusCodes.NOT_FOUND, 'Credential not found');
+  }
+
+  credential.status = status;
+  credential.reviewedAt = new Date();
+  await notary.save();
+
   return serializeCredentials(notary);
 };
