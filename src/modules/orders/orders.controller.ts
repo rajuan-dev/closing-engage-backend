@@ -119,6 +119,7 @@ const normalizeOrderPayload = (payload: z.infer<typeof orderPayloadSchema>) => {
   const propertyAddress = combineAddress(payload);
   const signingDate = payload.signingDate || payload.date;
   const preferredNotary = payload.preferredNotary?.trim();
+  const city = payload.city?.trim();
 
   if (!propertyAddress) {
     throw new HttpError(StatusCodes.BAD_REQUEST, 'Property address is required');
@@ -130,6 +131,7 @@ const normalizeOrderPayload = (payload: z.infer<typeof orderPayloadSchema>) => {
 
   return {
     ...payload,
+    city,
     propertyAddress,
     signingDate,
     signingTime: payload.signingTime || 'TBD',
@@ -155,9 +157,11 @@ const normalizeOrderUpdatePayload = (payload: z.infer<typeof orderUpdatePayloadS
   const propertyAddress = combineAddress(payload as z.infer<typeof orderPayloadSchema>);
   const signingDate = payload.signingDate || payload.date;
   const preferredNotary = payload.preferredNotary?.trim();
+  const city = payload.city?.trim();
 
   return {
     ...payload,
+    ...(city !== undefined ? { city } : {}),
     ...(propertyAddress ? { propertyAddress } : {}),
     ...(signingDate ? { signingDate } : {}),
     ...(payload.signingTime ? { signingTime: payload.signingTime } : {}),

@@ -7,6 +7,7 @@ import { ClosingDocument } from '../documents/documents.model';
 import {
   createNotificationSafely,
   notifyActiveNotariesSafely,
+  notifyNotariesByIdsSafely,
   notifyAdminsSafely,
 } from '../notifications/notifications.service';
 import { CompanyUser } from '../user/company-user.model';
@@ -68,6 +69,68 @@ const sizeLabelFromBytes = (size?: number, fallback?: string): string => {
   if (fallback?.trim()) return fallback.trim();
   if (!size) return '0 MB';
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const normalizeCity = (value?: string | null): string =>
+  value
+    ?.trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim() || '';
+
+const extractCityFromPropertyAddress = (propertyAddress?: string | null): string => {
+  if (!propertyAddress) return '';
+
+  const segments = propertyAddress
+    .split(',')
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+
+  if (segments.length >= 2) {
+    return segments[1];
+  }
+
+  return '';
+};
+
+const resolveOrderCity = (order: Pick<IOrder, 'city' | 'propertyAddress'>): string =>
+  order.city?.trim() || extractCityFromPropertyAddress(order.propertyAddress);
+
+const doesNotaryServiceAreaMatchCity = (serviceArea: string | undefined, city: string): boolean => {
+  const normalizedCity = normalizeCity(city);
+  if (!normalizedCity) return false;
+
+  const normalizedServiceArea = normalizeCity(serviceArea);
+  if (!normalizedServiceArea) return false;
+
+  return normalizedServiceArea.includes(normalizedCity);
+};
+
+type OpenOrderNotificationRecipient = {
+  _id: Types.ObjectId;
+  serviceArea?: string;
+  notifications?: {
+    email?: boolean;
+    orders?: boolean;
+    documents?: boolean;
+  };
+};
+
+const findEligibleOpenOrderNotaries = async (city: string) => {
+  const activeNotaries = (await NotaryUser.find({ status: { $ne: 'Inactive' } })
+    .select('_id serviceArea notifications')
+    .lean()) as OpenOrderNotificationRecipient[];
+
+  const orderNotificationEnabledNotaries = activeNotaries.filter((notary) => notary.notifications?.orders !== false);
+  const matchedNotaries = city
+    ? orderNotificationEnabledNotaries.filter((notary) => doesNotaryServiceAreaMatchCity(notary.serviceArea, city))
+    : [];
+
+  return {
+    cityMatched: matchedNotaries.length > 0,
+    recipients: matchedNotaries.length > 0 ? matchedNotaries : orderNotificationEnabledNotaries,
+  };
 };
 
 const pushTimeline = (order: IOrder, title: string, tone: 'blue' | 'slate' | 'green' | 'red' = 'blue'): void => {
@@ -237,6 +300,7 @@ export const serializeOrderDetail = async (order: IOrder) => {
     companyInitials: order.companyInitials,
     companyId: order.companyId?.toString() ?? '',
     clientName: order.clientName || order.signerName || '',
+    city: resolveOrderCity(order),
     signerName: order.signerName ?? '',
     signerPhone: order.signerPhone ?? '',
     propertyAddress: order.propertyAddress,
@@ -276,6 +340,7 @@ const serializePortalOrder = (order: IOrder) => ({
   clientName: order.clientName || order.signerName || '',
   companyName: order.titleCompany,
   propertyAddress: order.propertyAddress,
+  city: resolveOrderCity(order),
   location: order.propertyAddress,
   notary: order.assignedNotaryName === 'Unassigned' ? '--' : order.assignedNotaryName,
   status: order.status,
@@ -336,6 +401,7 @@ export const createOrder = async (auth: AuthContext, payload: {
   titleCompany: string;
   companyId?: string;
   clientName?: string;
+  city?: string;
   propertyAddress: string;
   signerName?: string;
   signerPhone?: string;
@@ -383,6 +449,7 @@ export const createOrder = async (auth: AuthContext, payload: {
     companyInitials,
     companyId,
     clientName: payload.clientName || payload.signerName,
+    city: payload.city?.trim() || extractCityFromPropertyAddress(payload.propertyAddress),
     propertyAddress: payload.propertyAddress,
     signerName: payload.signerName || payload.clientName,
     signerPhone: payload.signerPhone,
@@ -488,6 +555,7 @@ export const updateOrder = async (
     title: string;
     titleCompany: string;
     clientName?: string;
+    city?: string;
     propertyAddress: string;
     signerName?: string;
     signerPhone?: string;
@@ -531,7 +599,11 @@ export const updateOrder = async (
     order.clientName = payload.clientName;
     order.signerName = payload.clientName;
   }
+  if (payload.city !== undefined) order.city = payload.city.trim();
   if (payload.propertyAddress !== undefined) order.propertyAddress = payload.propertyAddress;
+  if (payload.propertyAddress !== undefined && payload.city === undefined) {
+    order.city = extractCityFromPropertyAddress(payload.propertyAddress);
+  }
   if (payload.signerName !== undefined) order.signerName = payload.signerName;
   if (payload.signerPhone !== undefined) order.signerPhone = payload.signerPhone;
   if (payload.signingDate !== undefined) order.signingDate = payload.signingDate;
@@ -602,6 +674,9 @@ export const assignNotary = async (
   const order = await findOrder(id, auth);
 
   if (payload.openForAll) {
+    const notificationCity = resolveOrderCity(order);
+    const { cityMatched, recipients } = await findEligibleOpenOrderNotaries(notificationCity);
+
     order.assignedNotaryId = undefined;
     order.assignedNotaryName = 'Open for All';
     order.avatarKey = 'none';
@@ -611,19 +686,39 @@ export const assignNotary = async (
 
     await order.save();
 
-    void notifyActiveNotariesSafely({
-      title: 'Open Order Available',
-      message: `${order.orderNumber} is open for all notaries. Claim it from your notifications before another notary accepts it.`,
-      type: 'order',
-      linkId: order.orderNumber,
-    });
+    const openOrderMessage = cityMatched && notificationCity
+      ? `${order.orderNumber} is open for notaries in ${notificationCity}. Claim it from your notifications before another notary accepts it.`
+      : `${order.orderNumber} is open for all notaries. Claim it from your notifications before another notary accepts it.`;
+
+    if (recipients.length > 0) {
+      void notifyNotariesByIdsSafely(
+        recipients.map((recipient) => recipient._id),
+        {
+          title: 'Open Order Available',
+          message: openOrderMessage,
+          type: 'order',
+          linkId: order.orderNumber,
+        },
+      );
+    } else {
+      void notifyActiveNotariesSafely({
+        title: 'Open Order Available',
+        message: openOrderMessage,
+        type: 'order',
+        linkId: order.orderNumber,
+      });
+    }
 
     if (order.companyId) {
+      const companyMessage = cityMatched && notificationCity
+        ? `${order.orderNumber} is now available to notaries who cover ${notificationCity}.`
+        : `${order.orderNumber} is now available for the first active notary to accept.`;
+
       void createNotificationSafely({
         recipientId: order.companyId,
         recipientRole: 'company',
-        title: 'Order Opened to All Notaries',
-        message: `${order.orderNumber} is now available for the first notary to accept.`,
+        title: 'Open Order Available',
+        message: companyMessage,
         type: 'order',
         linkId: order.orderNumber,
       });

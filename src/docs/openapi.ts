@@ -809,6 +809,7 @@ export const openApiDocument = {
         properties: {
           id: { type: 'string', example: '#ORD-90212' },
           clientName: { type: 'string', example: 'Daniel Brooks' },
+          city: { type: 'string', example: 'San Francisco' },
           propertyAddress: { type: 'string', example: '452 Pine St, San Francisco, CA 94104' },
           location: { type: 'string', example: '452 Pine St, San Francisco, CA 94104' },
           notary: { type: 'string', example: 'Sarah Jenkins' },
@@ -833,6 +834,7 @@ export const openApiDocument = {
           titleCompany: { type: 'string', example: 'Grand Peak Title' },
           companyId: { type: 'string', example: '682afc5f8d249f890fad5501' },
           clientName: { type: 'string', example: 'Daniel Brooks' },
+          city: { type: 'string', example: 'San Francisco' },
           propertyAddress: { type: 'string', example: '452 Pine St, San Francisco, CA 94104' },
           location: { type: 'string', example: '452 Pine St, San Francisco, CA 94104' },
           signingDate: { type: 'string', example: '10/24/2024' },

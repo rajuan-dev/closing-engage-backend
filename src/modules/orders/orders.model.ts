@@ -52,6 +52,7 @@ export interface IOrder extends Document {
   clientName?: string;
   signerName?: string;
   signerPhone?: string;
+  city?: string;
   propertyAddress: string;
   signingDate: string;
   signingTime: string;
@@ -118,6 +119,7 @@ const orderSchema = new Schema<IOrder>(
     clientName: { type: String, trim: true },
     signerName: { type: String, trim: true },
     signerPhone: { type: String, trim: true },
+    city: { type: String, trim: true, index: true },
     propertyAddress: { type: String, required: true, trim: true },
     signingDate: { type: String, required: true, trim: true },
     signingTime: { type: String, required: true, trim: true },

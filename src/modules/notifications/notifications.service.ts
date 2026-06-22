@@ -106,6 +106,26 @@ export const notifyActiveNotariesSafely = async (
   }
 };
 
+export const notifyNotariesByIdsSafely = async (
+  recipientIds: Array<string | Types.ObjectId>,
+  input: Omit<CreateNotificationInput, 'recipientId' | 'recipientRole'>,
+) => {
+  try {
+    const uniqueRecipientIds = Array.from(new Set(recipientIds.map((recipientId) => String(recipientId))));
+    await Promise.all(
+      uniqueRecipientIds.map((recipientId) =>
+        createNotification({
+          ...input,
+          recipientId,
+          recipientRole: 'notary',
+        }),
+      ),
+    );
+  } catch (error) {
+    logger.error({ err: error, input, recipientIds }, 'Selected notary notification fanout failed');
+  }
+};
+
 export const listNotifications = async (auth: AuthContext) => {
   const notifications = await Notification.find({
     recipientId: auth.id,
