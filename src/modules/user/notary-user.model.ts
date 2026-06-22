@@ -1,4 +1,15 @@
-import { Document, Schema, model } from 'mongoose';
+import { Document, Schema, Types, model } from 'mongoose';
+
+export type NotaryScreeningStatus = 'Pending' | 'Verified' | 'Failed';
+export type NotaryCredentialVerification = 'Auto-Verified' | 'Manual Review';
+
+export interface INotaryCredential {
+  _id: Types.ObjectId;
+  documentName: string;
+  issuer: string;
+  uploadDate: string;
+  verification: NotaryCredentialVerification;
+}
 
 export interface INotaryUser extends Document {
   publicId?: string;
@@ -12,6 +23,11 @@ export interface INotaryUser extends Document {
   serviceArea?: string;
   avatarUrl?: string;
   userName?: string;
+  commissionAuthority?: string;
+  eoCoverage?: string;
+  backgroundScreeningStatus?: NotaryScreeningStatus;
+  backgroundScreeningDetail?: string;
+  credentials?: Types.DocumentArray<INotaryCredential>;
   passwordHash?: string;
   adminVisiblePasswordCipher?: string;
   passwordResetOtp?: string;
@@ -30,6 +46,20 @@ export interface INotaryUser extends Document {
   updatedAt: Date;
 }
 
+const notaryCredentialSchema = new Schema<INotaryCredential>(
+  {
+    documentName: { type: String, required: true, trim: true },
+    issuer: { type: String, required: true, trim: true },
+    uploadDate: { type: String, required: true, trim: true },
+    verification: {
+      type: String,
+      enum: ['Auto-Verified', 'Manual Review'],
+      default: 'Manual Review',
+    },
+  },
+  { timestamps: true },
+);
+
 const notaryUserSchema = new Schema<INotaryUser>(
   {
     publicId: { type: String, unique: true, sparse: true, trim: true, uppercase: true },
@@ -43,6 +73,15 @@ const notaryUserSchema = new Schema<INotaryUser>(
     serviceArea: { type: String },
     avatarUrl: { type: String, trim: true },
     userName: { type: String, trim: true, unique: true, sparse: true },
+    commissionAuthority: { type: String, trim: true, default: '' },
+    eoCoverage: { type: String, trim: true, default: '' },
+    backgroundScreeningStatus: {
+      type: String,
+      enum: ['Pending', 'Verified', 'Failed'],
+      default: 'Pending',
+    },
+    backgroundScreeningDetail: { type: String, trim: true, default: '' },
+    credentials: { type: [notaryCredentialSchema], default: [] },
     passwordHash: { type: String },
     adminVisiblePasswordCipher: { type: String },
     passwordResetOtp: { type: String },

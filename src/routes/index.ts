@@ -7,6 +7,7 @@ import { communicationRouter } from '../modules/communications/communications.ro
 import { dashboardRouter } from '../modules/dashboard/dashboard.route';
 import { documentRouter } from '../modules/documents/documents.route';
 import { healthRouter } from '../modules/health/health.route';
+import { notaryRouter } from '../modules/notary/notary.route';
 import { notificationRouter } from '../modules/notifications/notifications.route';
 import { orderRouter } from '../modules/orders/orders.route';
 import { searchRouter } from '../modules/search/search.route';
@@ -22,6 +23,7 @@ router.use('/communications', communicationRouter);
 router.use('/dashboard', dashboardRouter);
 router.use('/documents', documentRouter);
 router.use('/health', healthRouter);
+router.use('/notary', notaryRouter);
 router.use('/notifications', notificationRouter);
 router.use('/orders', orderRouter);
 router.use('/search', searchRouter);
