@@ -160,8 +160,25 @@ export const serializeOrderRow = (order: IOrder): OrderRow => [
 ];
 
 export const serializeOrderDetail = async (order: IOrder) => {
-  const closingDocs = await ClosingDocument.find({ orderNumber: order.orderNumber }).lean();
-  const closingDocsMap = new Map(closingDocs.map((doc) => [doc.fileName.toLowerCase(), doc]));
+  const orderNumTrimmed = order.orderNumber.trim();
+  const withHash = orderNumTrimmed.startsWith('#') ? orderNumTrimmed : `#${orderNumTrimmed}`;
+  const withoutHash = orderNumTrimmed.replace(/^#/, '');
+  const orderNumberVariants = [orderNumTrimmed, withHash, withoutHash];
+  const closingDocs = await ClosingDocument.find({
+    $or: [
+      { orderNumber: { $in: orderNumberVariants } },
+      { orderId: order._id },
+    ],
+  })
+    .sort({ createdAt: -1 })
+    .lean();
+  const closingDocsByName = new Map<string, typeof closingDocs>();
+  for (const doc of closingDocs) {
+    const key = doc.fileName.toLowerCase();
+    const docsForName = closingDocsByName.get(key) ?? [];
+    docsForName.push(doc);
+    closingDocsByName.set(key, docsForName);
+  }
 
   let notaryAvatarUrl = '';
   if (order.assignedNotaryId) {
@@ -169,11 +186,14 @@ export const serializeOrderDetail = async (order: IOrder) => {
     notaryAvatarUrl = notary?.avatarUrl ?? '';
   }
 
-  const seenNames = new Set<string>();
+  const matchedDocIds = new Set<string>();
   const serializedDocs = order.documents.map((document) => {
     const docNameLower = document.name.toLowerCase();
-    seenNames.add(docNameLower);
-    const dbDoc = closingDocsMap.get(docNameLower);
+    const matchingDocs = closingDocsByName.get(docNameLower);
+    const dbDoc = matchingDocs?.shift();
+    if (dbDoc) {
+      matchedDocIds.add(dbDoc._id.toString());
+    }
     return {
       id: dbDoc?._id.toString() || '',
       name: document.name,
@@ -185,30 +205,28 @@ export const serializeOrderDetail = async (order: IOrder) => {
   });
 
   for (const doc of closingDocs) {
-    const docNameLower = doc.fileName.toLowerCase();
-    if (!seenNames.has(docNameLower)) {
-      seenNames.add(docNameLower);
-      
-      let uploadedBy: 'Admin' | 'Title Company' | 'Notary' = 'Admin';
-      if (doc.uploaderRole === 'notary') {
-        uploadedBy = 'Notary';
-      } else if (doc.uploaderRole === 'company' || doc.uploaderRole === 'title-company') {
-        uploadedBy = 'Title Company';
-      }
+    const docId = doc._id.toString();
+    if (matchedDocIds.has(docId)) continue;
 
-      const meta = doc.uploaderRole === 'notary'
-        ? `${sizeLabelFromBytes(doc.fileSize, doc.sizeLabel)} • Scanback submitted`
-        : (doc.sizeLabel || sizeLabelFromBytes(doc.fileSize));
-
-      serializedDocs.push({
-        id: doc._id.toString(),
-        name: doc.fileName,
-        meta,
-        uploadedBy,
-        uploadedAt: doc.createdAt.toISOString(),
-        status: doc.status,
-      });
+    let uploadedBy: 'Admin' | 'Title Company' | 'Notary' = 'Admin';
+    if (doc.uploaderRole === 'notary') {
+      uploadedBy = 'Notary';
+    } else if (doc.uploaderRole === 'company' || doc.uploaderRole === 'title-company') {
+      uploadedBy = 'Title Company';
     }
+
+    const meta = doc.uploaderRole === 'notary'
+      ? `${sizeLabelFromBytes(doc.fileSize, doc.sizeLabel)} • Scanback submitted`
+      : (doc.sizeLabel || sizeLabelFromBytes(doc.fileSize));
+
+    serializedDocs.push({
+      id: docId,
+      name: doc.fileName,
+      meta,
+      uploadedBy,
+      uploadedAt: doc.createdAt.toISOString(),
+      status: doc.status,
+    });
   }
 
   return {
