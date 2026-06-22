@@ -20,6 +20,11 @@ export interface ICompanyUser extends Document {
   passwordChangedAt?: Date;
   sendInvite?: boolean;
   verify?: boolean;
+  notifications?: {
+    email: boolean;
+    orders: boolean;
+    documents: boolean;
+  };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -45,6 +50,11 @@ const companyUserSchema = new Schema<ICompanyUser>(
     passwordChangedAt: { type: Date },
     sendInvite: { type: Boolean, default: false },
     verify: { type: Boolean, default: false },
+    notifications: {
+      email: { type: Boolean, default: true },
+      orders: { type: Boolean, default: true },
+      documents: { type: Boolean, default: false },
+    },
   },
   { timestamps: true },
 );

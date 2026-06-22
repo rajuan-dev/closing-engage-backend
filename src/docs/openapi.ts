@@ -82,6 +82,15 @@ export const openApiDocument = {
           },
         ],
       },
+      NotificationPreferences: {
+        type: 'object',
+        properties: {
+          email: { type: 'boolean', example: true },
+          orders: { type: 'boolean', example: true },
+          documents: { type: 'boolean', example: false },
+        },
+        required: ['email', 'orders', 'documents'],
+      },
       AdminProfile: {
         type: 'object',
         properties: {
@@ -93,6 +102,7 @@ export const openApiDocument = {
           contactNumber: { type: 'string', example: '+1 (555) 010-1000' },
           businessAddress: { type: 'string', example: 'Austin, Texas' },
           avatarUrl: { type: 'string', example: 'data:image/jpeg;base64,...' },
+          notifications: { $ref: '#/components/schemas/NotificationPreferences' },
         },
         required: [
           'fullName',
@@ -513,6 +523,7 @@ export const openApiDocument = {
           userName: { type: 'string', example: 'estateflux-admin' },
           sendInvite: { type: 'boolean', example: true },
           verify: { type: 'boolean', example: true },
+          notifications: { $ref: '#/components/schemas/NotificationPreferences' },
         },
         required: [
           'id',
@@ -615,6 +626,7 @@ export const openApiDocument = {
           userName: { type: 'string', example: 'jblake' },
           sendInvite: { type: 'boolean', example: true },
           verify: { type: 'boolean', example: true },
+          notifications: { $ref: '#/components/schemas/NotificationPreferences' },
         },
         required: [
           'id',

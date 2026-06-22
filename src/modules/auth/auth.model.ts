@@ -15,6 +15,11 @@ export interface IAdminUser extends Document {
   contactNumber: string;
   businessAddress: string;
   avatarUrl?: string;
+  notifications?: {
+    email: boolean;
+    orders: boolean;
+    documents: boolean;
+  };
 }
 
 const adminUserSchema = new Schema<IAdminUser>(
@@ -33,6 +38,11 @@ const adminUserSchema = new Schema<IAdminUser>(
     contactNumber: { type: String, required: true, trim: true },
     businessAddress: { type: String, required: true, trim: true },
     avatarUrl: { type: String, trim: true },
+    notifications: {
+      email: { type: Boolean, default: true },
+      orders: { type: Boolean, default: true },
+      documents: { type: Boolean, default: false },
+    },
   },
   { timestamps: true },
 );

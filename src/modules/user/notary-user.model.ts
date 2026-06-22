@@ -21,6 +21,11 @@ export interface INotaryUser extends Document {
   passwordChangedAt?: Date;
   sendInvite?: boolean;
   verify?: boolean;
+  notifications?: {
+    email: boolean;
+    orders: boolean;
+    documents: boolean;
+  };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -47,6 +52,11 @@ const notaryUserSchema = new Schema<INotaryUser>(
     passwordChangedAt: { type: Date },
     sendInvite: { type: Boolean, default: false },
     verify: { type: Boolean, default: false },
+    notifications: {
+      email: { type: Boolean, default: true },
+      orders: { type: Boolean, default: true },
+      documents: { type: Boolean, default: false },
+    },
   },
   { timestamps: true },
 );

@@ -29,6 +29,14 @@ const loginSchema = z.object({
   password: z.string().trim().min(1, 'Password is required'),
 });
 
+const notificationsSchema = z
+  .object({
+    email: z.boolean(),
+    orders: z.boolean(),
+    documents: z.boolean(),
+  })
+  .optional();
+
 const profileSchema = z.object({
   fullName: z.string().trim().min(1, 'Full name is required'),
   email: z.string().trim().email('Valid email is required'),
@@ -38,6 +46,7 @@ const profileSchema = z.object({
   contactNumber: z.string().trim().min(1, 'Contact number is required'),
   businessAddress: z.string().trim().min(1, 'Business address is required'),
   avatarUrl: z.string().trim().optional(),
+  notifications: notificationsSchema,
 });
 
 const passwordSchema = z
@@ -82,6 +91,7 @@ const companyProfileSchema = z.object({
   contactEmail: z.string().trim().email().optional(),
   address: z.string().trim().optional(),
   avatarUrl: z.string().trim().optional(),
+  notifications: notificationsSchema,
 });
 
 const notaryProfileSchema = z.object({
@@ -93,6 +103,7 @@ const notaryProfileSchema = z.object({
   expiry: z.string().trim().optional(),
   serviceArea: z.string().trim().optional(),
   avatarUrl: z.string().trim().optional(),
+  notifications: notificationsSchema,
 });
 
 export const login = asyncHandler(async (req: Request, res: Response) => {

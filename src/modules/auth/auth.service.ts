@@ -50,6 +50,11 @@ interface AdminProfileInput {
   contactNumber: string;
   businessAddress: string;
   avatarUrl?: string;
+  notifications?: {
+    email: boolean;
+    orders: boolean;
+    documents: boolean;
+  };
 }
 
 const sanitizeAdmin = (admin: IAdminUser) => ({
@@ -65,6 +70,7 @@ const sanitizeAdmin = (admin: IAdminUser) => ({
     contactNumber: admin.contactNumber,
     businessAddress: admin.businessAddress,
     avatarUrl: admin.avatarUrl ?? '',
+    notifications: admin.notifications || { email: true, orders: true, documents: false },
   },
 });
 
@@ -113,6 +119,7 @@ const sanitizeCompany = (company: ICompanyUser) => ({
   contactEmail: company.contactEmail ?? '',
   avatarUrl: company.avatarUrl ?? '',
   userName: company.userName ?? '',
+  notifications: company.notifications || { email: true, orders: true, documents: false },
   accountType: 'owner' as const,
   permissions: {
     createOrders: true,
@@ -162,6 +169,7 @@ const sanitizeNotary = (notary: INotaryUser) => ({
   serviceArea: notary.serviceArea ?? '',
   avatarUrl: notary.avatarUrl ?? '',
   userName: notary.userName ?? '',
+  notifications: notary.notifications || { email: true, orders: true, documents: false },
 });
 
 const createToken = (payload: { id: string; email: string; role: 'admin' | 'company' | 'notary' }): string =>
@@ -576,6 +584,11 @@ export const updateCompanyProfile = async (
     contactEmail: string;
     address: string;
     avatarUrl: string;
+    notifications: {
+      email: boolean;
+      orders: boolean;
+      documents: boolean;
+    };
   }>,
 ) => {
   const company = await CompanyUser.findById(id);
@@ -591,6 +604,7 @@ export const updateCompanyProfile = async (
   if (updates.contactEmail !== undefined) company.contactEmail = normalizeEmail(updates.contactEmail);
   if (updates.address !== undefined) company.address = updates.address;
   if (updates.avatarUrl !== undefined) company.avatarUrl = updates.avatarUrl;
+  if (updates.notifications !== undefined) company.notifications = updates.notifications;
 
   await company.save();
   return sanitizeCompany(company);
@@ -607,6 +621,11 @@ export const updateNotaryProfile = async (
     expiry: string;
     serviceArea: string;
     avatarUrl: string;
+    notifications: {
+      email: boolean;
+      orders: boolean;
+      documents: boolean;
+    };
   }>,
 ) => {
   const notary = await NotaryUser.findById(id);
@@ -623,6 +642,7 @@ export const updateNotaryProfile = async (
   if (updates.expiry !== undefined) notary.expiry = updates.expiry;
   if (updates.serviceArea !== undefined) notary.serviceArea = updates.serviceArea;
   if (updates.avatarUrl !== undefined) notary.avatarUrl = updates.avatarUrl;
+  if (updates.notifications !== undefined) notary.notifications = updates.notifications;
 
   await notary.save();
   return sanitizeNotary(notary);
@@ -766,6 +786,9 @@ export const updateAdminProfile = async (id: string, updates: AdminProfileInput)
   admin.businessAddress = updates.businessAddress;
   if (updates.avatarUrl !== undefined) {
     admin.avatarUrl = updates.avatarUrl;
+  }
+  if (updates.notifications !== undefined) {
+    admin.notifications = updates.notifications;
   }
 
   await admin.save();
