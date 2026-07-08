@@ -13,6 +13,7 @@ const envSchema = z.object({
   JWT_EXPIRES_IN: z.string().trim().min(1).default('1d'),
   ADMIN_SEED_EMAIL: z.string().trim().email().default('quantumerrors@gmail.com'),
   ADMIN_SEED_PASSWORD: z.string().trim().min(1).default('admin@123'),
+  ACCESS_REQUEST_NOTIFICATION_EMAILS: z.string().trim().optional(),
   AWS_REGION: z.string().trim().min(1, 'AWS_REGION is required'),
   AWS_ACCESS_KEY_ID: z.string().trim().min(1, 'AWS_ACCESS_KEY_ID is required'),
   AWS_SECRET_ACCESS_KEY: z.string().trim().min(1, 'AWS_SECRET_ACCESS_KEY is required'),
@@ -37,6 +38,9 @@ const rawEnv = parsedEnv.data;
 
 export const env = {
   ...rawEnv,
+  ACCESS_REQUEST_NOTIFICATION_EMAILS: rawEnv.ACCESS_REQUEST_NOTIFICATION_EMAILS?.split(',')
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean) ?? [],
   MONGODB_DNS_FALLBACK_SERVERS: rawEnv.MONGODB_DNS_FALLBACK_SERVERS?.split(',')
     .map((server) => server.trim())
     .filter(Boolean) ?? ['1.1.1.1', '8.8.8.8'],

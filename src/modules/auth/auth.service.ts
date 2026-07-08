@@ -6,7 +6,7 @@ import { StatusCodes } from 'http-status-codes';
 import { env } from '../../config/env';
 import { HttpError } from '../../core/http-error';
 import { logger } from '../../core/logger';
-import { sendEmail } from '../email/email.service';
+import { sendResetOtpEmail } from '../email/email.service';
 import { ITeamMember, TeamMember } from '../team/team.model';
 import { CompanyUser, ICompanyUser } from '../user/company-user.model';
 import { INotaryUser, NotaryUser } from '../user/notary-user.model';
@@ -210,6 +210,7 @@ const createNotaryToken = (notary: INotaryUser): string =>
 const normalizeEmail = (email: string) => email.trim().toLowerCase();
 
 const otpExpiryMinutes = 15;
+const resetVerificationWindowMinutes = 10;
 
 const generateOtp = () => crypto.randomInt(100000, 999999).toString();
 
@@ -254,23 +255,7 @@ const findResettableAccount = async (
 
 const safelySendPasswordResetEmail = async (target: ResettableAccount, otp: string): Promise<void> => {
   try {
-    await sendEmail({
-      to: target.email,
-      subject: 'Closing Engage password reset code',
-      html: `
-        <h2>Password reset requested</h2>
-        <p>Hello ${target.displayName},</p>
-        <p>Use this verification code to reset your Closing Engage password:</p>
-        <p><strong style="font-size: 24px;">${otp}</strong></p>
-        <p>This code expires in ${otpExpiryMinutes} minutes.</p>
-      `,
-      text: [
-        `Hello ${target.displayName},`,
-        'Use this verification code to reset your Closing Engage password:',
-        otp,
-        `This code expires in ${otpExpiryMinutes} minutes.`,
-      ].join('\n'),
-    });
+    await sendResetOtpEmail(target.email, target.displayName, otp);
   } catch (error) {
     logger.error(
       { err: error, role: target.role, email: target.email, accountId: target.account._id.toString() },
@@ -726,20 +711,31 @@ export const verifyPasswordResetOtp = async (email: string, otp: string, role?: 
   await target.account.save();
 };
 
-export const resetPasswordWithOtp = async (
+const assertPasswordResetCanProceed = async (
   email: string,
   otp: string,
-  newPassword: string,
   role?: 'admin' | 'company' | 'notary',
-) => {
+): Promise<ResettableAccount> => {
   const target = await findResettableAccount(email, role);
 
-  if (!target || !target.account.passwordResetOtp || !target.account.passwordResetExpiresAt) {
-    throw new HttpError(StatusCodes.BAD_REQUEST, 'Invalid or expired verification code');
+  if (
+    !target ||
+    !target.account.passwordResetOtp ||
+    !target.account.passwordResetExpiresAt ||
+    !target.account.passwordResetVerifiedAt
+  ) {
+    throw new HttpError(StatusCodes.BAD_REQUEST, 'Password reset verification is required');
   }
 
   if (target.account.passwordResetExpiresAt.getTime() < Date.now()) {
     throw new HttpError(StatusCodes.BAD_REQUEST, 'Invalid or expired verification code');
+  }
+
+  const verificationExpiresAt =
+    target.account.passwordResetVerifiedAt.getTime() + resetVerificationWindowMinutes * 60 * 1000;
+
+  if (verificationExpiresAt < Date.now()) {
+    throw new HttpError(StatusCodes.BAD_REQUEST, 'Password reset verification has expired');
   }
 
   const isOtpValid = await bcrypt.compare(otp, target.account.passwordResetOtp);
@@ -747,6 +743,17 @@ export const resetPasswordWithOtp = async (
   if (!isOtpValid) {
     throw new HttpError(StatusCodes.BAD_REQUEST, 'Invalid or expired verification code');
   }
+
+  return target;
+};
+
+export const resetPasswordWithOtp = async (
+  email: string,
+  otp: string,
+  newPassword: string,
+  role?: 'admin' | 'company' | 'notary',
+) => {
+  const target = await assertPasswordResetCanProceed(email, otp, role);
 
   target.account.passwordHash = await bcrypt.hash(newPassword, 12);
   if (target.role === 'company' || target.role === 'notary') {

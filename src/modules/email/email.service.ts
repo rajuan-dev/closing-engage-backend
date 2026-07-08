@@ -49,3 +49,23 @@ export const sendEmail = async ({ to, bcc, subject, html, text }: EmailPayload):
   logger.info({ to, bcc, subject, providerId: data?.id }, 'Email delivered successfully');
   return { delivered: true, providerId: data?.id };
 };
+
+export const sendResetOtpEmail = async (toEmail: string, displayName: string, otp: string): Promise<void> => {
+  await sendEmail({
+    to: toEmail,
+    subject: 'Verification Code to Reset Password',
+    html: `
+      <h2>Password Reset Requested</h2>
+      <p>Hello ${displayName},</p>
+      <p>Your 6-digit OTP verification code is:</p>
+      <p style="font-size: 24px; font-weight: bold; letter-spacing: 0.1em;">${otp}</p>
+      <p>This code will expire in 15 minutes.</p>
+    `,
+    text: [
+      `Hello ${displayName},`,
+      'Your 6-digit OTP verification code is:',
+      otp,
+      'This code will expire in 15 minutes.',
+    ].join('\n'),
+  });
+};

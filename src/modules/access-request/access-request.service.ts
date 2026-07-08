@@ -261,10 +261,23 @@ const buildAdminNotificationEmail = (request: ReturnType<typeof serializeAccessR
 };
 
 const notifyAdminsForAccessRequest = async (request: ReturnType<typeof serializeAccessRequest>): Promise<void> => {
-  const admins = await AdminUser.find({ isActive: true }).select('email');
-  const recipients = admins.map((admin) => admin.email).filter(Boolean);
+  const configuredRecipients = env.ACCESS_REQUEST_NOTIFICATION_EMAILS;
+  let recipients = configuredRecipients;
 
   if (recipients.length === 0) {
+    const admins = await AdminUser.find({ isActive: true }).select('email');
+    recipients = admins.map((admin) => admin.email).filter(Boolean);
+  }
+
+  if (recipients.length === 0) {
+    logger.warn(
+      {
+        accessRequestId: request.id,
+        role: request.role,
+        applicantEmail: request.email,
+      },
+      'Access request notification skipped because no recipients are configured',
+    );
     return;
   }
 

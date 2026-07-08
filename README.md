@@ -30,7 +30,10 @@ API_PREFIX=/api/v1
 MONGODB_URI=mongodb://localhost:27017/closing-engage
 CORS_ORIGIN=http://localhost:5173,http://localhost:3000
 LOG_LEVEL=info
+ACCESS_REQUEST_NOTIFICATION_EMAILS=admin@closingengage.com
 ```
+
+`ACCESS_REQUEST_NOTIFICATION_EMAILS` is optional. When set, public account-request notifications are sent to that comma-separated list instead of looking up active admin emails from MongoDB.
 
 ## API Documentation
 
