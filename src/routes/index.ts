@@ -4,6 +4,7 @@ import { accessRequestRouter } from '../modules/access-request/access-request.ro
 import { analyticsRouter } from '../modules/analytics/analytics.route';
 import { authRouter } from '../modules/auth/auth.route';
 import { communicationRouter } from '../modules/communications/communications.route';
+import { contactRouter } from '../modules/contact/contact.route';
 import { dashboardRouter } from '../modules/dashboard/dashboard.route';
 import { documentRouter } from '../modules/documents/documents.route';
 import { healthRouter } from '../modules/health/health.route';
@@ -20,6 +21,7 @@ router.use('/access-requests', accessRequestRouter);
 router.use('/analytics', analyticsRouter);
 router.use('/auth', authRouter);
 router.use('/communications', communicationRouter);
+router.use('/contact', contactRouter);
 router.use('/dashboard', dashboardRouter);
 router.use('/documents', documentRouter);
 router.use('/health', healthRouter);
