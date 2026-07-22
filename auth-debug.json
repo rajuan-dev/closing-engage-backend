@@ -1,0 +1,16 @@
+{
+  "company": {
+    "email": "company.ce@gmail.com",
+    "status": "Active",
+    "userName": "company.ce@gmail.com",
+    "hasPasswordHash": true,
+    "passwordMatches": true
+  },
+  "notary": {
+    "email": "notary.ce@gmail.com",
+    "status": "Active",
+    "userName": "notary.ce@gmail.com",
+    "hasPasswordHash": true,
+    "passwordMatches": true
+  }
+}
