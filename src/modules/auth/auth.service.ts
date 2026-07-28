@@ -289,6 +289,25 @@ export const ensureSeedAdmin = async (): Promise<void> => {
       logger.info({ email: seedEmail }, 'Default admin profile fields backfilled');
     }
 
+    const hasPasswordHash = Boolean(existingAdmin.passwordHash?.trim());
+    const passwordMatches = hasPasswordHash
+      ? await bcrypt.compare(env.ADMIN_SEED_PASSWORD, existingAdmin.passwordHash)
+      : false;
+
+    if (!hasPasswordHash || !passwordMatches) {
+      existingAdmin.passwordHash = await bcrypt.hash(env.ADMIN_SEED_PASSWORD, 12);
+      await existingAdmin.save();
+
+      logger.info(
+        {
+          email: seedEmail,
+          adminId: existingAdmin._id.toString(),
+          action: hasPasswordHash ? 'password-synced' : 'password-created',
+        },
+        'Seed admin password synchronized',
+      );
+    }
+
     if (seedEmail !== LEGACY_SEED_ADMIN_EMAIL) {
       const legacySeedAdmin = await AdminUser.findOne({ email: LEGACY_SEED_ADMIN_EMAIL });
       if (legacySeedAdmin?.isActive) {
@@ -312,7 +331,10 @@ export const ensureSeedAdmin = async (): Promise<void> => {
         email: existingAdmin.email,
         adminId: existingAdmin._id.toString(),
         seeded: true,
-        action: missingProfileFields ? 'backfilled-and-skipped' : 'already-exists-skipped',
+        action:
+          missingProfileFields || !hasPasswordHash || !passwordMatches
+            ? 'reconciled-and-skipped'
+            : 'already-exists-skipped',
       },
       'Admin seed check completed',
     );
@@ -330,6 +352,7 @@ export const ensureSeedAdmin = async (): Promise<void> => {
     legacySeedAdmin.companyName = legacySeedAdmin.companyName?.trim() || DEFAULT_ADMIN_PROFILE.companyName;
     legacySeedAdmin.contactNumber = legacySeedAdmin.contactNumber?.trim() || DEFAULT_ADMIN_PROFILE.contactNumber;
     legacySeedAdmin.businessAddress = legacySeedAdmin.businessAddress?.trim() || DEFAULT_ADMIN_PROFILE.businessAddress;
+    legacySeedAdmin.passwordHash = await bcrypt.hash(env.ADMIN_SEED_PASSWORD, 12);
     await legacySeedAdmin.save();
 
     logger.info(
