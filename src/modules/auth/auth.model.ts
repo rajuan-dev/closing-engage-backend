@@ -3,6 +3,7 @@ import { Document, Schema, model } from 'mongoose';
 export interface IAdminUser extends Document {
   email: string;
   passwordHash: string;
+  refreshTokenHash?: string;
   role: 'admin';
   isActive: boolean;
   passwordResetOtp?: string;
@@ -26,6 +27,7 @@ const adminUserSchema = new Schema<IAdminUser>(
   {
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     passwordHash: { type: String, required: true },
+    refreshTokenHash: { type: String },
     role: { type: String, enum: ['admin'], default: 'admin' },
     isActive: { type: Boolean, default: true },
     passwordResetOtp: { type: String },
@@ -41,7 +43,7 @@ const adminUserSchema = new Schema<IAdminUser>(
     notifications: {
       email: { type: Boolean, default: true },
       orders: { type: Boolean, default: true },
-      documents: { type: Boolean, default: false },
+      documents: { type: Boolean, default: true },
     },
   },
   { timestamps: true },

@@ -32,6 +32,7 @@ export interface INotaryUser extends Document {
   backgroundScreeningDetail?: string;
   credentials?: Types.DocumentArray<INotaryCredential>;
   passwordHash?: string;
+  refreshTokenHash?: string;
   adminVisiblePasswordCipher?: string;
   passwordResetOtp?: string;
   passwordResetExpiresAt?: Date;
@@ -92,6 +93,7 @@ const notaryUserSchema = new Schema<INotaryUser>(
     backgroundScreeningDetail: { type: String, trim: true, default: '' },
     credentials: { type: [notaryCredentialSchema], default: [] },
     passwordHash: { type: String },
+    refreshTokenHash: { type: String },
     adminVisiblePasswordCipher: { type: String },
     passwordResetOtp: { type: String },
     passwordResetExpiresAt: { type: Date },
@@ -103,7 +105,7 @@ const notaryUserSchema = new Schema<INotaryUser>(
     notifications: {
       email: { type: Boolean, default: true },
       orders: { type: Boolean, default: true },
-      documents: { type: Boolean, default: false },
+      documents: { type: Boolean, default: true },
     },
   },
   { timestamps: true },

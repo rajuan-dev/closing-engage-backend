@@ -41,6 +41,31 @@ interface AuthJwtPayload {
   };
 }
 
+interface RefreshJwtPayload {
+  sub: string;
+  email: string;
+  role: 'company' | 'notary';
+  accountType: 'owner' | 'team-member' | 'notary';
+  companyId?: string;
+  memberId?: string;
+  memberRole?: 'Admin' | 'Member';
+  permissions?: {
+    createOrders: boolean;
+    viewOrders: boolean;
+    downloadDocuments: boolean;
+  };
+  tokenType: 'refresh';
+}
+
+type PortalSessionResult = {
+  token: string;
+  accessToken: string;
+  refreshToken: string;
+  role: 'company' | 'notary';
+  user: ReturnType<typeof sanitizeCompany> | ReturnType<typeof sanitizeCompanyMember> | ReturnType<typeof sanitizeNotary>;
+  redirectTo: '/company/dashboard' | '/notary/dashboard';
+};
+
 interface AdminProfileInput {
   fullName: string;
   email: string;
@@ -70,7 +95,7 @@ const sanitizeAdmin = (admin: IAdminUser) => ({
     contactNumber: admin.contactNumber,
     businessAddress: admin.businessAddress,
     avatarUrl: admin.avatarUrl ?? '',
-    notifications: admin.notifications || { email: true, orders: true, documents: false },
+    notifications: admin.notifications || { email: true, orders: true, documents: true },
   },
 });
 
@@ -119,7 +144,7 @@ const sanitizeCompany = (company: ICompanyUser) => ({
   contactEmail: company.contactEmail ?? '',
   avatarUrl: company.avatarUrl ?? '',
   userName: company.userName ?? '',
-  notifications: company.notifications || { email: true, orders: true, documents: false },
+  notifications: company.notifications || { email: true, orders: true, documents: true },
   accountType: 'owner' as const,
   permissions: {
     createOrders: true,
@@ -169,7 +194,7 @@ const sanitizeNotary = (notary: INotaryUser) => ({
   serviceArea: notary.serviceArea ?? '',
   avatarUrl: notary.avatarUrl ?? '',
   userName: notary.userName ?? '',
-  notifications: notary.notifications || { email: true, orders: true, documents: false },
+  notifications: notary.notifications || { email: true, orders: true, documents: true },
 });
 
 const createToken = (payload: { id: string; email: string; role: 'admin' | 'company' | 'notary' }): string =>
@@ -206,6 +231,16 @@ const createCompanyMemberToken = (member: ITeamMember): string =>
 
 const createNotaryToken = (notary: INotaryUser): string =>
   createToken({ id: notary._id.toString(), email: notary.email, role: 'notary' });
+
+const createPortalRefreshToken = (payload: Omit<RefreshJwtPayload, 'tokenType'>): string =>
+  jwt.sign(
+    {
+      ...payload,
+      tokenType: 'refresh',
+    },
+    env.JWT_REFRESH_SECRET,
+    { expiresIn: env.JWT_REFRESH_EXPIRES_IN as jwt.SignOptions['expiresIn'] },
+  );
 
 const normalizeEmail = (email: string) => email.trim().toLowerCase();
 
@@ -262,6 +297,89 @@ const safelySendPasswordResetEmail = async (target: ResettableAccount, otp: stri
       'Password reset code persisted, but reset email failed',
     );
   }
+};
+
+const storeRefreshTokenHash = async (
+  entity: { refreshTokenHash?: string; save: () => Promise<unknown> },
+  refreshToken: string,
+): Promise<void> => {
+  entity.refreshTokenHash = await bcrypt.hash(refreshToken, 12);
+  await entity.save();
+};
+
+const clearRefreshTokenHash = async (entity: { refreshTokenHash?: string; save: () => Promise<unknown> }): Promise<void> => {
+  entity.refreshTokenHash = undefined;
+  await entity.save();
+};
+
+const issueCompanyPortalSession = async (company: ICompanyUser): Promise<PortalSessionResult> => {
+  const accessToken = createCompanyToken(company);
+  const refreshToken = createPortalRefreshToken({
+    sub: company._id.toString(),
+    email: company.businessEmail,
+    role: 'company',
+    accountType: 'owner',
+  });
+
+  await storeRefreshTokenHash(company, refreshToken);
+
+  return {
+    token: accessToken,
+    accessToken,
+    refreshToken,
+    role: 'company',
+    user: sanitizeCompany(company),
+    redirectTo: '/company/dashboard',
+  };
+};
+
+const issueCompanyMemberPortalSession = async (
+  member: ITeamMember,
+  company: ICompanyUser,
+): Promise<PortalSessionResult> => {
+  const accessToken = createCompanyMemberToken(member);
+  const refreshToken = createPortalRefreshToken({
+    sub: member._id.toString(),
+    email: member.email,
+    role: 'company',
+    accountType: 'team-member',
+    companyId: member.companyId,
+    memberId: member._id.toString(),
+    memberRole: member.role,
+    permissions: member.permissions,
+  });
+
+  await storeRefreshTokenHash(member, refreshToken);
+
+  return {
+    token: accessToken,
+    accessToken,
+    refreshToken,
+    role: 'company',
+    user: sanitizeCompanyMember(member, company),
+    redirectTo: '/company/dashboard',
+  };
+};
+
+const issueNotaryPortalSession = async (notary: INotaryUser): Promise<PortalSessionResult> => {
+  const accessToken = createNotaryToken(notary);
+  const refreshToken = createPortalRefreshToken({
+    sub: notary._id.toString(),
+    email: notary.email,
+    role: 'notary',
+    accountType: 'notary',
+  });
+
+  await storeRefreshTokenHash(notary, refreshToken);
+
+  return {
+    token: accessToken,
+    accessToken,
+    refreshToken,
+    role: 'notary',
+    user: sanitizeNotary(notary),
+    redirectTo: '/notary/dashboard',
+  };
 };
 
 export const ensureSeedAdmin = async (): Promise<void> => {
@@ -537,49 +655,148 @@ export const getNotaryById = async (id: string) => {
 };
 
 export const loginPortalUser = async (emailOrUserName: string, password: string) => {
-  try {
-    const companyResult = await loginCompany(emailOrUserName, password);
-    return {
-      token: companyResult.token,
-      role: 'company' as const,
-      user: companyResult.company,
-      redirectTo: '/company/dashboard',
-    };
-  } catch (error) {
-    if (!(error instanceof HttpError) || error.statusCode !== StatusCodes.UNAUTHORIZED) {
-      throw error;
+  const normalizedEmail = normalizeEmail(emailOrUserName);
+  const normalizedUserName = emailOrUserName.trim();
+
+  const company = await CompanyUser.findOne({
+    $or: [
+      { businessEmail: normalizedEmail },
+      { contactEmail: normalizedEmail },
+      { userName: normalizedUserName },
+    ],
+  });
+
+  if (company && company.status === 'Active' && company.passwordHash) {
+    const isPasswordValid = await bcrypt.compare(password, company.passwordHash);
+    if (isPasswordValid) {
+      return issueCompanyPortalSession(company);
     }
   }
 
-  try {
-    const memberResult = await loginCompanyMember(emailOrUserName, password);
-    return {
-      token: memberResult.token,
-      role: 'company' as const,
-      user: memberResult.company,
-      redirectTo: '/company/dashboard',
-    };
-  } catch (error) {
-    if (!(error instanceof HttpError) || error.statusCode !== StatusCodes.UNAUTHORIZED) {
-      throw error;
+  const member = await TeamMember.findOne({ email: normalizedEmail }).select('+passwordHash +refreshTokenHash');
+  if (member && member.status !== 'Inactive' && member.passwordHash) {
+    const isPasswordValid = await bcrypt.compare(password, member.passwordHash);
+    if (isPasswordValid) {
+      const companyForMember = await CompanyUser.findById(member.companyId);
+      if (!companyForMember || companyForMember.status !== 'Active') {
+        throw new HttpError(StatusCodes.UNAUTHORIZED, 'Invalid email or password');
+      }
+
+      if (member.status === 'Pending Invite') {
+        member.status = 'Active';
+        member.joinedDate = formatDate(new Date());
+      }
+
+      return issueCompanyMemberPortalSession(member, companyForMember);
     }
   }
 
-  try {
-    const notaryResult = await loginNotary(emailOrUserName, password);
-    return {
-      token: notaryResult.token,
-      role: 'notary' as const,
-      user: notaryResult.notary,
-      redirectTo: '/notary/dashboard',
-    };
-  } catch (error) {
-    if (!(error instanceof HttpError) || error.statusCode !== StatusCodes.UNAUTHORIZED) {
-      throw error;
+  const notary = await NotaryUser.findOne({
+    $or: [{ email: normalizedEmail }, { userName: normalizedUserName }],
+  });
+
+  if (notary && notary.status === 'Active' && notary.passwordHash) {
+    const isPasswordValid = await bcrypt.compare(password, notary.passwordHash);
+    if (isPasswordValid) {
+      return issueNotaryPortalSession(notary);
     }
   }
 
   throw new HttpError(StatusCodes.UNAUTHORIZED, 'Invalid email or password');
+};
+
+const verifyPortalRefreshToken = (token: string): RefreshJwtPayload => {
+  try {
+    const payload = jwt.verify(token, env.JWT_REFRESH_SECRET) as Partial<RefreshJwtPayload>;
+
+    if (payload.tokenType !== 'refresh' || (payload.role !== 'company' && payload.role !== 'notary')) {
+      throw new Error('Invalid refresh token payload');
+    }
+
+    return payload as RefreshJwtPayload;
+  } catch {
+    throw new HttpError(StatusCodes.UNAUTHORIZED, 'Invalid or expired refresh token');
+  }
+};
+
+export const refreshPortalSession = async (refreshToken: string) => {
+  const payload = verifyPortalRefreshToken(refreshToken);
+
+  if (payload.role === 'company' && payload.accountType === 'owner') {
+    const company = await CompanyUser.findById(payload.sub);
+    if (!company || company.status !== 'Active' || !company.refreshTokenHash) {
+      throw new HttpError(StatusCodes.UNAUTHORIZED, 'Refresh token is no longer valid');
+    }
+
+    const matches = await bcrypt.compare(refreshToken, company.refreshTokenHash);
+    if (!matches) {
+      throw new HttpError(StatusCodes.UNAUTHORIZED, 'Refresh token is no longer valid');
+    }
+
+    return issueCompanyPortalSession(company);
+  }
+
+  if (payload.role === 'company' && payload.accountType === 'team-member') {
+    const member = await TeamMember.findById(payload.memberId ?? payload.sub).select('+refreshTokenHash');
+    if (!member || member.status === 'Inactive' || !member.refreshTokenHash) {
+      throw new HttpError(StatusCodes.UNAUTHORIZED, 'Refresh token is no longer valid');
+    }
+
+    const company = await CompanyUser.findById(member.companyId);
+    if (!company || company.status !== 'Active') {
+      throw new HttpError(StatusCodes.UNAUTHORIZED, 'Refresh token is no longer valid');
+    }
+
+    const matches = await bcrypt.compare(refreshToken, member.refreshTokenHash);
+    if (!matches) {
+      throw new HttpError(StatusCodes.UNAUTHORIZED, 'Refresh token is no longer valid');
+    }
+
+    return issueCompanyMemberPortalSession(member, company);
+  }
+
+  if (payload.role === 'notary' && payload.accountType === 'notary') {
+    const notary = await NotaryUser.findById(payload.sub);
+    if (!notary || notary.status !== 'Active' || !notary.refreshTokenHash) {
+      throw new HttpError(StatusCodes.UNAUTHORIZED, 'Refresh token is no longer valid');
+    }
+
+    const matches = await bcrypt.compare(refreshToken, notary.refreshTokenHash);
+    if (!matches) {
+      throw new HttpError(StatusCodes.UNAUTHORIZED, 'Refresh token is no longer valid');
+    }
+
+    return issueNotaryPortalSession(notary);
+  }
+
+  throw new HttpError(StatusCodes.UNAUTHORIZED, 'Refresh token is no longer valid');
+};
+
+export const revokePortalSession = async (refreshToken: string): Promise<void> => {
+  const payload = verifyPortalRefreshToken(refreshToken);
+
+  if (payload.role === 'company' && payload.accountType === 'owner') {
+    const company = await CompanyUser.findById(payload.sub);
+    if (company?.refreshTokenHash) {
+      await clearRefreshTokenHash(company);
+    }
+    return;
+  }
+
+  if (payload.role === 'company' && payload.accountType === 'team-member') {
+    const member = await TeamMember.findById(payload.memberId ?? payload.sub).select('+refreshTokenHash');
+    if (member?.refreshTokenHash) {
+      await clearRefreshTokenHash(member);
+    }
+    return;
+  }
+
+  if (payload.role === 'notary' && payload.accountType === 'notary') {
+    const notary = await NotaryUser.findById(payload.sub);
+    if (notary?.refreshTokenHash) {
+      await clearRefreshTokenHash(notary);
+    }
+  }
 };
 
 export const updateCompanyProfile = async (

@@ -12,6 +12,7 @@ export interface ICompanyUser extends Document {
   avatarUrl?: string;
   userName?: string;
   passwordHash?: string;
+  refreshTokenHash?: string;
   adminVisiblePasswordCipher?: string;
   passwordResetOtp?: string;
   passwordResetExpiresAt?: Date;
@@ -42,6 +43,7 @@ const companyUserSchema = new Schema<ICompanyUser>(
     avatarUrl: { type: String, trim: true },
     userName: { type: String, trim: true, unique: true, sparse: true },
     passwordHash: { type: String },
+    refreshTokenHash: { type: String },
     adminVisiblePasswordCipher: { type: String },
     passwordResetOtp: { type: String },
     passwordResetExpiresAt: { type: Date },
@@ -53,7 +55,7 @@ const companyUserSchema = new Schema<ICompanyUser>(
     notifications: {
       email: { type: Boolean, default: true },
       orders: { type: Boolean, default: true },
-      documents: { type: Boolean, default: false },
+      documents: { type: Boolean, default: true },
     },
   },
   { timestamps: true },

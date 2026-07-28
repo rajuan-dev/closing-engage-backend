@@ -3,6 +3,7 @@ import { Types } from 'mongoose';
 
 import { HttpError } from '../../core/http-error';
 import { logger } from '../../core/logger';
+import { sendEmail } from '../email/email.service';
 import {
   emitNotificationCreated,
   emitNotificationDeleted,
@@ -11,6 +12,7 @@ import {
   emitNotificationsReadAll,
 } from '../communications/communications.socket';
 import { AdminUser } from '../auth/auth.model';
+import { CompanyUser } from '../user/company-user.model';
 import { NotaryUser } from '../user/notary-user.model';
 import { sendPushNotificationForNotification } from '../push-devices/expo-push.service';
 import {
@@ -29,6 +31,17 @@ type CreateNotificationInput = {
   message: string;
   type: NotificationType;
   linkId?: string;
+};
+
+type NotificationPreferenceState = {
+  email: boolean;
+  orders: boolean;
+  documents: boolean;
+};
+
+type RecipientNotificationSettings = {
+  emailAddress: string | null;
+  preferences: NotificationPreferenceState;
 };
 
 const relativeTime = (date: Date): string => {
@@ -53,7 +66,102 @@ export const serializeNotification = (notification: INotification) => ({
   recipientRole: notification.recipientRole,
 });
 
+const defaultNotificationPreferences: NotificationPreferenceState = {
+  email: true,
+  orders: true,
+  documents: true,
+};
+
+const loadRecipientNotificationSettings = async (
+  recipientRole: NotificationRecipientRole,
+  recipientId: string | Types.ObjectId,
+): Promise<RecipientNotificationSettings | null> => {
+  const normalizedRecipientId = String(recipientId);
+
+  if (recipientRole === 'company') {
+    const company = await CompanyUser.findById(normalizedRecipientId).select('businessEmail notifications').lean();
+    if (!company) return null;
+
+    return {
+      emailAddress: company.businessEmail ?? null,
+      preferences: {
+        email: company.notifications?.email ?? defaultNotificationPreferences.email,
+        orders: company.notifications?.orders ?? defaultNotificationPreferences.orders,
+        documents: company.notifications?.documents ?? defaultNotificationPreferences.documents,
+      },
+    };
+  }
+
+  if (recipientRole === 'notary') {
+    const notary = await NotaryUser.findById(normalizedRecipientId).select('email notifications').lean();
+    if (!notary) return null;
+
+    return {
+      emailAddress: notary.email ?? null,
+      preferences: {
+        email: notary.notifications?.email ?? defaultNotificationPreferences.email,
+        orders: notary.notifications?.orders ?? defaultNotificationPreferences.orders,
+        documents: notary.notifications?.documents ?? defaultNotificationPreferences.documents,
+      },
+    };
+  }
+
+  const admin = await AdminUser.findById(normalizedRecipientId).select('email notifications').lean();
+  if (!admin) return null;
+
+  return {
+    emailAddress: admin.email ?? null,
+    preferences: {
+      email: admin.notifications?.email ?? defaultNotificationPreferences.email,
+      orders: admin.notifications?.orders ?? defaultNotificationPreferences.orders,
+      documents: admin.notifications?.documents ?? defaultNotificationPreferences.documents,
+    },
+  };
+};
+
+const canReceiveNotificationType = (
+  preferences: NotificationPreferenceState,
+  type: NotificationType,
+): boolean => {
+  if (type === 'order') {
+    return preferences.orders;
+  }
+
+  if (type === 'document') {
+    return preferences.documents;
+  }
+
+  return true;
+};
+
+const sendNotificationEmailSafely = async (
+  input: CreateNotificationInput,
+  recipientEmail: string,
+): Promise<void> => {
+  try {
+    await sendEmail({
+      to: recipientEmail,
+      subject: `${input.title} | Closing Engage`,
+      html: `
+        <h2>${input.title}</h2>
+        <p>${input.message}</p>
+        ${input.linkId ? `<p>Reference: ${input.linkId}</p>` : ''}
+      `,
+      text: [input.title, input.message, input.linkId ? `Reference: ${input.linkId}` : ''].filter(Boolean).join('\n\n'),
+    });
+  } catch (error) {
+    logger.error({ err: error, recipientEmail, input }, 'Notification email delivery failed');
+  }
+};
+
 export const createNotification = async (input: CreateNotificationInput) => {
+  const recipientSettings = await loadRecipientNotificationSettings(input.recipientRole, input.recipientId);
+  const preferences = recipientSettings?.preferences ?? defaultNotificationPreferences;
+
+  if (!canReceiveNotificationType(preferences, input.type)) {
+    return null;
+  }
+
   const notification = await Notification.create({
     ...input,
     recipientId: new Types.ObjectId(input.recipientId),
@@ -78,6 +186,11 @@ export const createNotification = async (input: CreateNotificationInput) => {
       'Push notification fanout failed',
     );
   });
+
+  if (preferences.email && recipientSettings?.emailAddress) {
+    void sendNotificationEmailSafely(input, recipientSettings.emailAddress);
+  }
+
   return notification;
 };
 

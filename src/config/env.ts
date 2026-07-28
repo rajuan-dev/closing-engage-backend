@@ -11,6 +11,8 @@ const envSchema = z.object({
   MONGODB_DNS_FALLBACK_SERVERS: z.string().trim().optional(),
   JWT_SECRET: z.string().trim().min(1, 'JWT_SECRET is required'),
   JWT_EXPIRES_IN: z.string().trim().min(1).default('1d'),
+  JWT_REFRESH_SECRET: z.string().trim().optional(),
+  JWT_REFRESH_EXPIRES_IN: z.string().trim().min(1).default('30d'),
   ADMIN_SEED_EMAIL: z.string().trim().email().default('quantumerrors@gmail.com'),
   ADMIN_SEED_PASSWORD: z.string().trim().min(1).default('admin@123'),
   ACCESS_REQUEST_NOTIFICATION_EMAILS: z.string().trim().optional(),
@@ -38,6 +40,7 @@ const rawEnv = parsedEnv.data;
 
 export const env = {
   ...rawEnv,
+  JWT_REFRESH_SECRET: rawEnv.JWT_REFRESH_SECRET || rawEnv.JWT_SECRET,
   ACCESS_REQUEST_NOTIFICATION_EMAILS: rawEnv.ACCESS_REQUEST_NOTIFICATION_EMAILS?.split(',')
     .map((email) => email.trim().toLowerCase())
     .filter(Boolean) ?? [],

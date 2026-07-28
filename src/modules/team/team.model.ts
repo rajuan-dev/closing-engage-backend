@@ -9,6 +9,7 @@ export interface ITeamMember extends Document {
   joinedDate: string;
   companyId: string;
   passwordHash?: string;
+  refreshTokenHash?: string;
   passwordChangedAt?: Date;
   permissions: {
     createOrders: boolean;
@@ -27,6 +28,7 @@ const teamMemberSchema = new Schema<ITeamMember>(
     joinedDate: { type: String, required: true },
     companyId: { type: String, required: true },
     passwordHash: { type: String, select: false },
+    refreshTokenHash: { type: String, select: false },
     passwordChangedAt: { type: Date },
     permissions: {
       createOrders: { type: Boolean, default: true },

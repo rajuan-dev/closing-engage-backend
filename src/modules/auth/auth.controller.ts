@@ -13,6 +13,8 @@ import {
   loginCompany,
   loginNotary,
   loginPortalUser,
+  refreshPortalSession,
+  revokePortalSession,
   requestPasswordReset,
   resetPasswordWithOtp,
   updateAdminPassword,
@@ -61,6 +63,9 @@ const passwordSchema = z
   });
 
 const resetRoleSchema = z.enum(['admin', 'company', 'notary']);
+const refreshTokenSchema = z.object({
+  refreshToken: z.string().trim().min(1, 'Refresh token is required'),
+});
 
 const forgotPasswordSchema = z.object({
   email: z.string().trim().email('Valid email is required'),
@@ -151,6 +156,29 @@ export const loginPortal = asyncHandler(async (req: Request, res: Response) => {
     success: true,
     message: 'Portal login successful',
     data: result,
+  });
+});
+
+export const refreshPortal = asyncHandler(async (req: Request, res: Response) => {
+  const { refreshToken } = refreshTokenSchema.parse(req.body);
+  const result = await refreshPortalSession(refreshToken);
+
+  return sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: 'Portal session refreshed successfully',
+    data: result,
+  });
+});
+
+export const logoutPortal = asyncHandler(async (req: Request, res: Response) => {
+  const { refreshToken } = refreshTokenSchema.parse(req.body);
+  await revokePortalSession(refreshToken);
+
+  return sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: 'Portal session revoked successfully',
   });
 });
 
