@@ -12,6 +12,7 @@ import {
 } from '../communications/communications.socket';
 import { AdminUser } from '../auth/auth.model';
 import { NotaryUser } from '../user/notary-user.model';
+import { sendPushNotificationForNotification } from '../push-devices/expo-push.service';
 import {
   INotification,
   Notification,
@@ -59,6 +60,24 @@ export const createNotification = async (input: CreateNotificationInput) => {
   });
 
   emitNotificationCreated(input.recipientRole, String(input.recipientId), serializeNotification(notification));
+  void sendPushNotificationForNotification({
+    recipientId: String(input.recipientId),
+    recipientRole: input.recipientRole,
+    title: input.title,
+    message: input.message,
+    type: input.type,
+    linkId: input.linkId,
+  }).catch((error) => {
+    logger.error(
+      {
+        err: error,
+        recipientId: String(input.recipientId),
+        recipientRole: input.recipientRole,
+        type: input.type,
+      },
+      'Push notification fanout failed',
+    );
+  });
   return notification;
 };
 
