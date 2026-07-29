@@ -382,8 +382,7 @@ const issueNotaryPortalSession = async (notary: INotaryUser): Promise<PortalSess
   };
 };
 
-export const ensureSeedAdmin = async (): Promise<void> => {
-  const seedEmail = env.ADMIN_SEED_EMAIL.trim().toLowerCase();
+const ensureSingleSeedAdmin = async (seedEmail: string, seedPassword: string): Promise<void> => {
   const existingAdmin = await AdminUser.findOne({ email: seedEmail });
 
   if (existingAdmin) {
@@ -408,21 +407,17 @@ export const ensureSeedAdmin = async (): Promise<void> => {
     }
 
     const hasPasswordHash = Boolean(existingAdmin.passwordHash?.trim());
-    const passwordMatches = hasPasswordHash
-      ? await bcrypt.compare(env.ADMIN_SEED_PASSWORD, existingAdmin.passwordHash)
-      : false;
-
-    if (!hasPasswordHash || !passwordMatches) {
-      existingAdmin.passwordHash = await bcrypt.hash(env.ADMIN_SEED_PASSWORD, 12);
+    if (!hasPasswordHash) {
+      existingAdmin.passwordHash = await bcrypt.hash(seedPassword, 12);
       await existingAdmin.save();
 
       logger.info(
         {
           email: seedEmail,
           adminId: existingAdmin._id.toString(),
-          action: hasPasswordHash ? 'password-synced' : 'password-created',
+          action: 'password-created',
         },
-        'Seed admin password synchronized',
+        'Seed admin password initialized for existing account without a password hash',
       );
     }
 
@@ -449,10 +444,7 @@ export const ensureSeedAdmin = async (): Promise<void> => {
         email: existingAdmin.email,
         adminId: existingAdmin._id.toString(),
         seeded: true,
-        action:
-          missingProfileFields || !hasPasswordHash || !passwordMatches
-            ? 'reconciled-and-skipped'
-            : 'already-exists-skipped',
+        action: missingProfileFields || !hasPasswordHash ? 'reconciled-and-skipped' : 'already-exists-skipped',
       },
       'Admin seed check completed',
     );
@@ -462,7 +454,7 @@ export const ensureSeedAdmin = async (): Promise<void> => {
 
   const legacySeedAdmin = await AdminUser.findOne({ email: LEGACY_SEED_ADMIN_EMAIL });
 
-  if (legacySeedAdmin) {
+  if (legacySeedAdmin && seedEmail !== LEGACY_SEED_ADMIN_EMAIL) {
     legacySeedAdmin.email = seedEmail;
     legacySeedAdmin.companyEmail = seedEmail;
     legacySeedAdmin.fullName = legacySeedAdmin.fullName?.trim() || DEFAULT_ADMIN_PROFILE.fullName;
@@ -470,7 +462,7 @@ export const ensureSeedAdmin = async (): Promise<void> => {
     legacySeedAdmin.companyName = legacySeedAdmin.companyName?.trim() || DEFAULT_ADMIN_PROFILE.companyName;
     legacySeedAdmin.contactNumber = legacySeedAdmin.contactNumber?.trim() || DEFAULT_ADMIN_PROFILE.contactNumber;
     legacySeedAdmin.businessAddress = legacySeedAdmin.businessAddress?.trim() || DEFAULT_ADMIN_PROFILE.businessAddress;
-    legacySeedAdmin.passwordHash = await bcrypt.hash(env.ADMIN_SEED_PASSWORD, 12);
+    legacySeedAdmin.passwordHash = await bcrypt.hash(seedPassword, 12);
     await legacySeedAdmin.save();
 
     logger.info(
@@ -487,7 +479,7 @@ export const ensureSeedAdmin = async (): Promise<void> => {
     return;
   }
 
-  const passwordHash = await bcrypt.hash(env.ADMIN_SEED_PASSWORD, 12);
+  const passwordHash = await bcrypt.hash(seedPassword, 12);
 
   await AdminUser.create({
     email: seedEmail,
@@ -506,6 +498,12 @@ export const ensureSeedAdmin = async (): Promise<void> => {
     },
     'Admin seed check completed',
   );
+};
+
+export const ensureSeedAdmin = async (): Promise<void> => {
+  for (const seedAdmin of env.ADMIN_SEED_ADMINS) {
+    await ensureSingleSeedAdmin(seedAdmin.email, seedAdmin.password);
+  }
 };
 
 export const loginAdmin = async (email: string, password: string) => {

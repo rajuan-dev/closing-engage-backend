@@ -13,6 +13,10 @@ const envSchema = z.object({
   JWT_EXPIRES_IN: z.string().trim().min(1).default('1d'),
   JWT_REFRESH_SECRET: z.string().trim().optional(),
   JWT_REFRESH_EXPIRES_IN: z.string().trim().min(1).default('30d'),
+  ADMIN_SEED_EMAIL_1: z.string().trim().email().optional(),
+  ADMIN_SEED_PASSWORD_1: z.string().trim().min(1).optional(),
+  ADMIN_SEED_EMAIL_2: z.string().trim().email().optional(),
+  ADMIN_SEED_PASSWORD_2: z.string().trim().min(1).optional(),
   ADMIN_SEED_EMAIL: z.string().trim().email().default('quantumerrors@gmail.com'),
   ADMIN_SEED_PASSWORD: z.string().trim().min(1).default('admin@123'),
   ACCESS_REQUEST_NOTIFICATION_EMAILS: z.string().trim().optional(),
@@ -38,9 +42,37 @@ if (!parsedEnv.success) {
 
 const rawEnv = parsedEnv.data;
 
+const seedAdminCandidates = [
+  rawEnv.ADMIN_SEED_EMAIL_1 && rawEnv.ADMIN_SEED_PASSWORD_1
+    ? {
+        email: rawEnv.ADMIN_SEED_EMAIL_1.trim().toLowerCase(),
+        password: rawEnv.ADMIN_SEED_PASSWORD_1,
+      }
+    : null,
+  rawEnv.ADMIN_SEED_EMAIL_2 && rawEnv.ADMIN_SEED_PASSWORD_2
+    ? {
+        email: rawEnv.ADMIN_SEED_EMAIL_2.trim().toLowerCase(),
+        password: rawEnv.ADMIN_SEED_PASSWORD_2,
+      }
+    : null,
+].filter((candidate): candidate is { email: string; password: string } => Boolean(candidate));
+
+const adminSeedAdmins =
+  seedAdminCandidates.length > 0
+    ? seedAdminCandidates
+    : [
+        {
+          email: rawEnv.ADMIN_SEED_EMAIL.trim().toLowerCase(),
+          password: rawEnv.ADMIN_SEED_PASSWORD,
+        },
+      ];
+
 export const env = {
   ...rawEnv,
   JWT_REFRESH_SECRET: rawEnv.JWT_REFRESH_SECRET || rawEnv.JWT_SECRET,
+  ADMIN_SEED_ADMINS: adminSeedAdmins,
+  ADMIN_SEED_EMAIL: adminSeedAdmins[0]?.email || rawEnv.ADMIN_SEED_EMAIL.trim().toLowerCase(),
+  ADMIN_SEED_PASSWORD: adminSeedAdmins[0]?.password || rawEnv.ADMIN_SEED_PASSWORD,
   ACCESS_REQUEST_NOTIFICATION_EMAILS: rawEnv.ACCESS_REQUEST_NOTIFICATION_EMAILS?.split(',')
     .map((email) => email.trim().toLowerCase())
     .filter(Boolean) ?? [],
