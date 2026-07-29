@@ -15,7 +15,17 @@ import { CompanyUser } from '../user/company-user.model';
 import { NotaryUser } from '../user/notary-user.model';
 import { IOrder, IOrderDocument, IOrderMeeting, LoanType, NotaryPreference, Order, OrderPriority, OrderStatus } from './orders.model';
 
-type OrderRow = [string, string, string, string, string, string, OrderStatus, 'none' | 'jane' | 'mark'];
+type OrderRow = [
+  string,
+  string,
+  string,
+  string,
+  string,
+  string,
+  OrderStatus,
+  'none' | 'jane' | 'mark',
+  OrderPriority,
+];
 type AuthContext = {
   id: string;
   email: string;
@@ -221,6 +231,7 @@ export const serializeOrderRow = (order: IOrder): OrderRow => [
   displayDateTime(order),
   order.status,
   order.avatarKey,
+  order.priority,
 ];
 
 export const serializeOrderDetail = async (order: IOrder) => {
