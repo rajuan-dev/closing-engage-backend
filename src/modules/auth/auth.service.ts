@@ -13,6 +13,7 @@ import { INotaryUser, NotaryUser } from '../user/notary-user.model';
 import { AdminUser, IAdminUser } from './auth.model';
 
 const LEGACY_SEED_ADMIN_EMAIL = 'admin@closingengage.com';
+const configuredSeedAdminEmails = () => new Set(env.ADMIN_SEED_ADMINS.map((admin) => admin.email));
 const DEFAULT_ADMIN_PROFILE = {
   fullName: 'Closing Engage Admin',
   phone: '+1 (555) 010-1000',
@@ -383,6 +384,7 @@ const issueNotaryPortalSession = async (notary: INotaryUser): Promise<PortalSess
 };
 
 const ensureSingleSeedAdmin = async (seedEmail: string, seedPassword: string): Promise<void> => {
+  const seedAdminEmails = configuredSeedAdminEmails();
   const existingAdmin = await AdminUser.findOne({ email: seedEmail });
 
   if (existingAdmin) {
@@ -421,7 +423,7 @@ const ensureSingleSeedAdmin = async (seedEmail: string, seedPassword: string): P
       );
     }
 
-    if (seedEmail !== LEGACY_SEED_ADMIN_EMAIL) {
+    if (seedEmail !== LEGACY_SEED_ADMIN_EMAIL && !seedAdminEmails.has(LEGACY_SEED_ADMIN_EMAIL)) {
       const legacySeedAdmin = await AdminUser.findOne({ email: LEGACY_SEED_ADMIN_EMAIL });
       if (legacySeedAdmin?.isActive) {
         legacySeedAdmin.isActive = false;
@@ -454,7 +456,7 @@ const ensureSingleSeedAdmin = async (seedEmail: string, seedPassword: string): P
 
   const legacySeedAdmin = await AdminUser.findOne({ email: LEGACY_SEED_ADMIN_EMAIL });
 
-  if (legacySeedAdmin && seedEmail !== LEGACY_SEED_ADMIN_EMAIL) {
+  if (legacySeedAdmin && seedEmail !== LEGACY_SEED_ADMIN_EMAIL && !seedAdminEmails.has(LEGACY_SEED_ADMIN_EMAIL)) {
     legacySeedAdmin.email = seedEmail;
     legacySeedAdmin.companyEmail = seedEmail;
     legacySeedAdmin.fullName = legacySeedAdmin.fullName?.trim() || DEFAULT_ADMIN_PROFILE.fullName;
@@ -504,6 +506,14 @@ export const ensureSeedAdmin = async (): Promise<void> => {
   for (const seedAdmin of env.ADMIN_SEED_ADMINS) {
     await ensureSingleSeedAdmin(seedAdmin.email, seedAdmin.password);
   }
+
+  await AdminUser.updateMany(
+    {
+      email: { $in: env.ADMIN_SEED_ADMINS.map((admin) => admin.email) },
+      isActive: false,
+    },
+    { $set: { isActive: true } },
+  );
 };
 
 export const loginAdmin = async (email: string, password: string) => {
