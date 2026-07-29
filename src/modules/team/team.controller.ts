@@ -8,7 +8,7 @@ import { env } from '../../config/env';
 import { HttpError } from '../../core/http-error';
 import { logger } from '../../core/logger';
 import { sendResponse } from '../../core/response';
-import { sendEmail } from '../email/email.service';
+import { sendEmail, buildEmailTemplate } from '../email/email.service';
 import { CompanyUser } from '../user/company-user.model';
 import { TeamMember } from './team.model';
 
@@ -75,24 +75,46 @@ const sendInviteEmail = async (input: {
 }) => {
   const loginUrl = `${env.PORTAL_BASE_URL}/login`;
 
+  const html = buildEmailTemplate({
+    title: 'You have been invited to Closing Engage',
+    bodyHtml: `
+      <p style="margin: 0;">Hello <strong>${input.memberName}</strong>,</p>
+      <p style="margin: 16px 0 0 0;"><strong>${input.companyName}</strong> has added you as a team member on Closing Engage. Below are your login credentials:</p>
+      <div style="margin: 24px 0; padding: 20px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
+        <table border="0" cellpadding="0" cellspacing="0" width="100%">
+          <tr>
+            <td style="padding: 6px 0; font-size: 14px; color: #64748b; width: 140px;"><strong>Company Name:</strong></td>
+            <td style="padding: 6px 0; font-size: 14px; color: #0f172a;">${input.companyName}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; font-size: 14px; color: #64748b;"><strong>Email:</strong></td>
+            <td style="padding: 6px 0; font-size: 14px; color: #0f172a;">${input.email}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; font-size: 14px; color: #64748b;"><strong>Temp Password:</strong></td>
+            <td style="padding: 6px 0; font-size: 14px; color: #2f69ff; font-family: monospace; font-weight: bold; font-size: 15px;">${input.password}</td>
+          </tr>
+        </table>
+      </div>
+    `,
+    actionUrl: loginUrl,
+    actionText: 'Sign in to Closing Engage',
+    warningHtml: 'IMPORTANT: Please change your password immediately after logging in for security reasons.',
+    subject: `${input.companyName} invited you to Closing Engage`,
+  });
+
   return sendEmail({
     to: input.email,
     bcc: env.ADMIN_SEED_EMAIL,
     subject: `${input.companyName} invited you to Closing Engage`,
-    html: `
-      <h2>You have been invited to Closing Engage</h2>
-      <p>Hello ${input.memberName},</p>
-      <p>${input.companyName} added you as a team member.</p>
-      <p><strong>Email:</strong> ${input.email}</p>
-      <p><strong>Temporary Password:</strong> ${input.password}</p>
-      <p><a href="${loginUrl}">Sign in to Closing Engage</a></p>
-    `,
+    html,
     text: [
       'You have been invited to Closing Engage',
       `Company: ${input.companyName}`,
       `Email: ${input.email}`,
       `Temporary Password: ${input.password}`,
       `Login: ${loginUrl}`,
+      'IMPORTANT: Please change your password immediately after logging in for security reasons.',
     ].join('\n'),
   });
 };

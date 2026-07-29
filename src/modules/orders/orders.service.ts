@@ -6,6 +6,7 @@ import { buildDocumentS3Key } from '../../utils/s3';
 import { ClosingDocument } from '../documents/documents.model';
 import {
   createNotificationSafely,
+  expireNotificationsByLinkIdSafely,
   notifyActiveNotariesSafely,
   notifyNotariesByIdsSafely,
   notifyAdminsSafely,
@@ -798,6 +799,12 @@ export const acceptOpenOrder = async (auth: AuthContext, id: string) => {
   });
 
   if (alreadyAssignedToMe) {
+    void expireNotificationsByLinkIdSafely({
+      recipientRole: 'notary',
+      linkId: alreadyAssignedToMe.orderNumber,
+      type: 'order',
+      title: 'Open Order Available',
+    });
     return serializePortalOrder(alreadyAssignedToMe);
   }
 
@@ -825,6 +832,13 @@ export const acceptOpenOrder = async (auth: AuthContext, id: string) => {
 
   pushTimeline(claimedOrder, `Order accepted by ${notary.fullName}`, 'green');
   await claimedOrder.save();
+
+  void expireNotificationsByLinkIdSafely({
+    recipientRole: 'notary',
+    linkId: claimedOrder.orderNumber,
+    type: 'order',
+    title: 'Open Order Available',
+  });
 
   if (claimedOrder.companyId) {
     void createNotificationSafely({

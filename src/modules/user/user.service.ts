@@ -5,7 +5,7 @@ import { StatusCodes } from 'http-status-codes';
 import { env } from '../../config/env';
 import { HttpError } from '../../core/http-error';
 import { logger } from '../../core/logger';
-import { sendEmail } from '../email/email.service';
+import { sendEmail, buildEmailTemplate } from '../email/email.service';
 import { notifyAdminsSafely } from '../notifications/notifications.service';
 import { CompanyUser, ICompanyUser } from './company-user.model';
 import { INotaryUser, NotaryUser } from './notary-user.model';
@@ -144,19 +144,42 @@ const sendCompanyInviteEmail = async (company: ReturnType<typeof serializeCompan
   const targetEmail = company.contactEmail || company.businessEmail;
   const loginUrl = `${env.PORTAL_BASE_URL}/login`;
 
+  const html = buildEmailTemplate({
+    title: 'Welcome to Closing Engage',
+    bodyHtml: `
+      <p style="margin: 0;">Your company account has been successfully created by an administrator. Below are your login credentials:</p>
+      <div style="margin: 24px 0; padding: 20px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
+        <table border="0" cellpadding="0" cellspacing="0" width="100%">
+          <tr>
+            <td style="padding: 6px 0; font-size: 14px; color: #64748b; width: 140px;"><strong>Company Name:</strong></td>
+            <td style="padding: 6px 0; font-size: 14px; color: #0f172a;">${company.companyName}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; font-size: 14px; color: #64748b;"><strong>Username:</strong></td>
+            <td style="padding: 6px 0; font-size: 14px; color: #0f172a;">${company.userName || 'Not provided'}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; font-size: 14px; color: #64748b;"><strong>Email:</strong></td>
+            <td style="padding: 6px 0; font-size: 14px; color: #0f172a;">${targetEmail}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; font-size: 14px; color: #64748b;"><strong>Temp Password:</strong></td>
+            <td style="padding: 6px 0; font-size: 14px; color: #2f69ff; font-family: monospace; font-weight: bold; font-size: 15px;">${password ?? 'Use the password provided separately.'}</td>
+          </tr>
+        </table>
+      </div>
+    `,
+    actionUrl: loginUrl,
+    actionText: 'Sign in to Closing Engage',
+    warningHtml: 'IMPORTANT: Please change your password immediately after logging in for security reasons.',
+    subject: 'Your Closing Engage company account is ready',
+  });
+
   return sendEmail({
     to: targetEmail,
     bcc: env.ADMIN_SEED_EMAIL,
     subject: 'Your Closing Engage company account is ready',
-    html: `
-      <h2>Welcome to Closing Engage</h2>
-      <p>Your company account has been created by an administrator.</p>
-      <p><strong>Company:</strong> ${company.companyName}</p>
-      <p><strong>User Name:</strong> ${company.userName || 'Not provided'}</p>
-      <p><strong>Email:</strong> ${targetEmail}</p>
-      <p><strong>Temporary Password:</strong> ${password ?? 'Use the password provided separately.'}</p>
-      <p><a href="${loginUrl}">Sign in to Closing Engage</a></p>
-    `,
+    html,
     text: [
       'Welcome to Closing Engage',
       `Company: ${company.companyName}`,
@@ -164,6 +187,7 @@ const sendCompanyInviteEmail = async (company: ReturnType<typeof serializeCompan
       `Email: ${targetEmail}`,
       `Temporary Password: ${password ?? 'Use the password provided separately.'}`,
       `Login: ${loginUrl}`,
+      'IMPORTANT: Please change your password immediately after logging in for security reasons.',
     ].join('\n'),
   });
 };
@@ -171,19 +195,42 @@ const sendCompanyInviteEmail = async (company: ReturnType<typeof serializeCompan
 const sendNotaryInviteEmail = async (notary: ReturnType<typeof serializeNotaryUser>, password?: string) => {
   const loginUrl = `${env.PORTAL_BASE_URL}/login`;
 
+  const html = buildEmailTemplate({
+    title: 'Welcome to Closing Engage',
+    bodyHtml: `
+      <p style="margin: 0;">Your notary partner account has been successfully created by an administrator. Below are your login credentials:</p>
+      <div style="margin: 24px 0; padding: 20px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
+        <table border="0" cellpadding="0" cellspacing="0" width="100%">
+          <tr>
+            <td style="padding: 6px 0; font-size: 14px; color: #64748b; width: 140px;"><strong>Name:</strong></td>
+            <td style="padding: 6px 0; font-size: 14px; color: #0f172a;">${notary.fullName}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; font-size: 14px; color: #64748b;"><strong>Username:</strong></td>
+            <td style="padding: 6px 0; font-size: 14px; color: #0f172a;">${notary.userName || 'Not provided'}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; font-size: 14px; color: #64748b;"><strong>Email:</strong></td>
+            <td style="padding: 6px 0; font-size: 14px; color: #0f172a;">${notary.email}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; font-size: 14px; color: #64748b;"><strong>Temp Password:</strong></td>
+            <td style="padding: 6px 0; font-size: 14px; color: #2f69ff; font-family: monospace; font-weight: bold; font-size: 15px;">${password ?? 'Use the password provided separately.'}</td>
+          </tr>
+        </table>
+      </div>
+    `,
+    actionUrl: loginUrl,
+    actionText: 'Sign in to Closing Engage',
+    warningHtml: 'IMPORTANT: Please change your password immediately after logging in for security reasons.',
+    subject: 'Your Closing Engage notary account is ready',
+  });
+
   return sendEmail({
     to: notary.email,
     bcc: env.ADMIN_SEED_EMAIL,
     subject: 'Your Closing Engage notary account is ready',
-    html: `
-      <h2>Welcome to Closing Engage</h2>
-      <p>Your notary account has been created by an administrator.</p>
-      <p><strong>Name:</strong> ${notary.fullName}</p>
-      <p><strong>Email:</strong> ${notary.email}</p>
-      <p><strong>User Name:</strong> ${notary.userName || 'Not provided'}</p>
-      <p><strong>Temporary Password:</strong> ${password ?? 'Use the password provided separately.'}</p>
-      <p><a href="${loginUrl}">Sign in to Closing Engage</a></p>
-    `,
+    html,
     text: [
       'Welcome to Closing Engage',
       `Name: ${notary.fullName}`,
@@ -191,6 +238,7 @@ const sendNotaryInviteEmail = async (notary: ReturnType<typeof serializeNotaryUs
       `User Name: ${notary.userName || 'Not provided'}`,
       `Temporary Password: ${password ?? 'Use the password provided separately.'}`,
       `Login: ${loginUrl}`,
+      'IMPORTANT: Please change your password immediately after logging in for security reasons.',
     ].join('\n'),
   });
 };

@@ -33,6 +33,14 @@ type CreateNotificationInput = {
   linkId?: string;
 };
 
+type ExpireNotificationsInput = {
+  recipientRole: NotificationRecipientRole;
+  linkId: string;
+  type?: NotificationType;
+  title?: string;
+  excludeRecipientId?: string;
+};
+
 type NotificationPreferenceState = {
   email: boolean;
   orders: boolean;
@@ -313,4 +321,54 @@ export const clearAllNotifications = async (auth: AuthContext) => {
   });
 
   emitNotificationsCleared(auth.role, auth.id);
+};
+
+export const expireNotificationsByLinkId = async (input: ExpireNotificationsInput) => {
+  const query: {
+    recipientRole: NotificationRecipientRole;
+    linkId: string;
+    type?: NotificationType;
+    title?: string;
+    recipientId?: { $ne: Types.ObjectId };
+  } = {
+    recipientRole: input.recipientRole,
+    linkId: input.linkId,
+  };
+
+  if (input.type) {
+    query.type = input.type;
+  }
+
+  if (input.title) {
+    query.title = input.title;
+  }
+
+  if (input.excludeRecipientId && Types.ObjectId.isValid(input.excludeRecipientId)) {
+    query.recipientId = { $ne: new Types.ObjectId(input.excludeRecipientId) };
+  }
+
+  const notifications = await Notification.find(query).select('_id recipientId recipientRole');
+  if (notifications.length === 0) {
+    return;
+  }
+
+  await Notification.deleteMany({
+    _id: { $in: notifications.map((notification) => notification._id) },
+  });
+
+  notifications.forEach((notification) => {
+    emitNotificationDeleted(
+      notification.recipientRole,
+      notification.recipientId.toString(),
+      notification._id.toString(),
+    );
+  });
+};
+
+export const expireNotificationsByLinkIdSafely = async (input: ExpireNotificationsInput): Promise<void> => {
+  try {
+    await expireNotificationsByLinkId(input);
+  } catch (error) {
+    logger.error({ err: error, input }, 'Notification expiry by link id failed');
+  }
 };
