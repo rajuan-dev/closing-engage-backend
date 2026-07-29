@@ -73,7 +73,7 @@ const sendInviteEmail = async (input: {
   email: string;
   password: string;
 }) => {
-  const loginUrl = `${env.WEBSITE_BASE_URL}/login`;
+  const loginUrl = `${env.PORTAL_BASE_URL}/login`;
 
   return sendEmail({
     to: input.email,

@@ -27,6 +27,7 @@ const envSchema = z.object({
   RESEND_API_KEY: z.string().trim().optional(),
   RESEND_FROM_EMAIL: z.string().trim().optional(),
   WEBSITE_BASE_URL: z.string().trim().default('http://localhost:5173'),
+  PORTAL_BASE_URL: z.string().trim().optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 });
 
@@ -73,6 +74,7 @@ export const env = {
   ADMIN_SEED_ADMINS: adminSeedAdmins,
   ADMIN_SEED_EMAIL: adminSeedAdmins[0]?.email || rawEnv.ADMIN_SEED_EMAIL.trim().toLowerCase(),
   ADMIN_SEED_PASSWORD: adminSeedAdmins[0]?.password || rawEnv.ADMIN_SEED_PASSWORD,
+  PORTAL_BASE_URL: rawEnv.PORTAL_BASE_URL?.trim() || 'https://www.closingengage.com',
   ACCESS_REQUEST_NOTIFICATION_EMAILS: rawEnv.ACCESS_REQUEST_NOTIFICATION_EMAILS?.split(',')
     .map((email) => email.trim().toLowerCase())
     .filter(Boolean) ?? [],

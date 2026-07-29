@@ -142,7 +142,7 @@ const serializeNotaryUser = (notary: INotaryUser) => ({
 
 const sendCompanyInviteEmail = async (company: ReturnType<typeof serializeCompanyUser>, password?: string) => {
   const targetEmail = company.contactEmail || company.businessEmail;
-  const loginUrl = `${env.WEBSITE_BASE_URL}/login`;
+  const loginUrl = `${env.PORTAL_BASE_URL}/login`;
 
   return sendEmail({
     to: targetEmail,
@@ -169,7 +169,7 @@ const sendCompanyInviteEmail = async (company: ReturnType<typeof serializeCompan
 };
 
 const sendNotaryInviteEmail = async (notary: ReturnType<typeof serializeNotaryUser>, password?: string) => {
-  const loginUrl = `${env.WEBSITE_BASE_URL}/login`;
+  const loginUrl = `${env.PORTAL_BASE_URL}/login`;
 
   return sendEmail({
     to: notary.email,
