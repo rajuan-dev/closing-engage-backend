@@ -120,7 +120,6 @@ const doesNotaryServiceAreaMatchCity = (serviceArea: string | undefined, city: s
 
 type OpenOrderNotificationRecipient = {
   _id: Types.ObjectId;
-  serviceArea?: string;
   notifications?: {
     email?: boolean;
     orders?: boolean;
@@ -128,20 +127,12 @@ type OpenOrderNotificationRecipient = {
   };
 };
 
-const findEligibleOpenOrderNotaries = async (city: string) => {
+const findEligibleOpenOrderNotaries = async () => {
   const activeNotaries = (await NotaryUser.find({ status: { $ne: 'Inactive' } })
-    .select('_id serviceArea notifications')
+    .select('_id notifications')
     .lean()) as OpenOrderNotificationRecipient[];
 
-  const orderNotificationEnabledNotaries = activeNotaries.filter((notary) => notary.notifications?.orders !== false);
-  const matchedNotaries = city
-    ? orderNotificationEnabledNotaries.filter((notary) => doesNotaryServiceAreaMatchCity(notary.serviceArea, city))
-    : [];
-
-  return {
-    cityMatched: matchedNotaries.length > 0,
-    recipients: matchedNotaries.length > 0 ? matchedNotaries : orderNotificationEnabledNotaries,
-  };
+  return activeNotaries.filter((notary) => notary.notifications?.orders !== false);
 };
 
 const pushTimeline = (order: IOrder, title: string, tone: 'blue' | 'slate' | 'green' | 'red' = 'blue'): void => {
@@ -686,8 +677,7 @@ export const assignNotary = async (
   const order = await findOrder(id, auth);
 
   if (payload.openForAll) {
-    const notificationCity = resolveOrderCity(order);
-    const { cityMatched, recipients } = await findEligibleOpenOrderNotaries(notificationCity);
+    const recipients = await findEligibleOpenOrderNotaries();
 
     order.assignedNotaryId = undefined;
     order.assignedNotaryName = 'Open for All';
@@ -698,9 +688,8 @@ export const assignNotary = async (
 
     await order.save();
 
-    const openOrderMessage = cityMatched && notificationCity
-      ? `${order.orderNumber} is open for notaries in ${notificationCity}. Claim it from your notifications before another notary accepts it.`
-      : `${order.orderNumber} is open for all notaries. Claim it from your notifications before another notary accepts it.`;
+    const openOrderMessage =
+      `${order.orderNumber} is open for all notaries. Claim it from your notifications before another notary accepts it.`;
 
     if (recipients.length > 0) {
       void notifyNotariesByIdsSafely(
@@ -722,9 +711,7 @@ export const assignNotary = async (
     }
 
     if (order.companyId) {
-      const companyMessage = cityMatched && notificationCity
-        ? `${order.orderNumber} is now available to notaries who cover ${notificationCity}.`
-        : `${order.orderNumber} is now available for the first active notary to accept.`;
+      const companyMessage = `${order.orderNumber} is now available for the first active notary to accept.`;
 
       void createNotificationSafely({
         recipientId: order.companyId,
