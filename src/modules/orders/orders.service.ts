@@ -157,6 +157,11 @@ const serializeMeeting = (meeting?: IOrderMeeting | null) =>
         scheduledAt: meeting.scheduledAt.toISOString(),
         confirmedByRole: meeting.confirmedByRole,
         confirmedAt: meeting.confirmedAt?.toISOString(),
+        rejectedByRole: meeting.rejectedByRole,
+        rejectedAt: meeting.rejectedAt?.toISOString(),
+        rejectionNote: meeting.rejectionNote,
+        preferredDate: meeting.preferredDate,
+        preferredTime: meeting.preferredTime,
       }
     : null;
 
@@ -486,6 +491,13 @@ export const createOrder = async (auth: AuthContext, payload: {
     signerPhone: payload.signerPhone,
     signingDate: payload.signingDate,
     signingTime: payload.signingTime,
+    meeting: {
+      status: 'scheduled',
+      date: payload.signingDate,
+      time: payload.signingTime,
+      scheduledByRole: auth.role,
+      scheduledAt: new Date(),
+    },
     price: payload.price,
     loanType: payload.loanType,
     scanbacksRequired: payload.scanbacksRequired ?? false,
@@ -933,8 +945,8 @@ export const scheduleOrderMeeting = async (
   id: string,
   payload: { signingDate: string; signingTime: string },
 ) => {
-  if (auth.role === 'company') {
-    throw new HttpError(StatusCodes.FORBIDDEN, 'Company users cannot schedule meetings');
+  if (auth.role === 'notary') {
+    throw new HttpError(StatusCodes.FORBIDDEN, 'Only company users or admins can request schedules');
   }
 
   const order = await findOrder(id, auth);
@@ -948,30 +960,37 @@ export const scheduleOrderMeeting = async (
     time: payload.signingTime,
     scheduledByRole: auth.role,
     scheduledAt: new Date(),
+    confirmedByRole: undefined,
+    confirmedAt: undefined,
+    rejectedByRole: undefined,
+    rejectedAt: undefined,
+    rejectionNote: undefined,
+    preferredDate: undefined,
+    preferredTime: undefined,
   };
 
   pushTimeline(
     order,
-    `${isReschedule ? 'Closing rescheduled' : 'Closing scheduled'} for ${payload.signingDate} at ${payload.signingTime}`,
+    `${isReschedule ? 'Schedule request updated' : 'Schedule requested'} for ${payload.signingDate} at ${payload.signingTime}`,
     'blue',
   );
 
   await order.save();
 
-  if (order.companyId) {
+  if (order.assignedNotaryId) {
     void createNotificationSafely({
-      recipientId: order.companyId,
-      recipientRole: 'company',
-      title: isReschedule ? 'Closing Rescheduled' : 'Closing Scheduled',
-      message: `The notary scheduled ${order.orderNumber} for ${payload.signingDate} at ${payload.signingTime}. Please review and confirm the meeting.`,
+      recipientId: order.assignedNotaryId,
+      recipientRole: 'notary',
+      title: isReschedule ? 'Schedule Request Updated' : 'Schedule Request',
+      message: `The title company requested ${order.orderNumber} for ${payload.signingDate} at ${payload.signingTime}. Please accept or send preferred availability.`,
       type: 'order',
       linkId: order.orderNumber,
     });
   }
 
   void notifyAdminsSafely({
-    title: isReschedule ? 'Closing Rescheduled' : 'Closing Scheduled',
-    message: `${order.orderNumber} is scheduled for ${payload.signingDate} at ${payload.signingTime}.`,
+    title: isReschedule ? 'Schedule Request Updated' : 'Schedule Request',
+    message: `${order.orderNumber} schedule requested for ${payload.signingDate} at ${payload.signingTime}.`,
     type: 'order',
     linkId: order.orderNumber,
   });
@@ -980,8 +999,8 @@ export const scheduleOrderMeeting = async (
 };
 
 export const confirmOrderMeeting = async (auth: AuthContext, id: string) => {
-  if (auth.role === 'notary') {
-    throw new HttpError(StatusCodes.FORBIDDEN, 'Only company users or admins can confirm meetings');
+  if (auth.role !== 'notary') {
+    throw new HttpError(StatusCodes.FORBIDDEN, 'Only notaries can accept schedule requests');
   }
 
   const order = await findOrder(id, auth);
@@ -997,35 +1016,80 @@ export const confirmOrderMeeting = async (auth: AuthContext, id: string) => {
   order.meeting.status = 'confirmed';
   order.meeting.confirmedAt = new Date();
   order.meeting.confirmedByRole = auth.role;
-  pushTimeline(order, `Closing confirmed for ${order.meeting.date} at ${order.meeting.time}`, 'green');
+  order.meeting.rejectedAt = undefined;
+  order.meeting.rejectedByRole = undefined;
+  order.meeting.rejectionNote = undefined;
+  order.meeting.preferredDate = undefined;
+  order.meeting.preferredTime = undefined;
+  pushTimeline(order, `Schedule accepted by notary for ${order.meeting.date} at ${order.meeting.time}`, 'green');
 
   await order.save();
 
-  if (order.assignedNotaryId) {
-    void createNotificationSafely({
-      recipientId: order.assignedNotaryId,
-      recipientRole: 'notary',
-      title: 'Closing Confirmed',
-      message: `The title company confirmed ${order.orderNumber} for ${order.meeting.date} at ${order.meeting.time}.`,
-      type: 'order',
-      linkId: order.orderNumber,
-    });
-  }
-
-  if (order.companyId && auth.role === 'admin') {
+  if (order.companyId) {
     void createNotificationSafely({
       recipientId: order.companyId,
       recipientRole: 'company',
-      title: 'Closing Confirmed',
-      message: `Your closing for ${order.orderNumber} is confirmed for ${order.meeting.date} at ${order.meeting.time}.`,
+      title: 'Schedule Accepted',
+      message: `The notary accepted ${order.orderNumber} for ${order.meeting.date} at ${order.meeting.time}.`,
       type: 'order',
       linkId: order.orderNumber,
     });
   }
 
   void notifyAdminsSafely({
-    title: 'Closing Confirmed',
-    message: `${order.orderNumber} has a confirmed closing for ${order.meeting.date} at ${order.meeting.time}.`,
+    title: 'Schedule Accepted',
+    message: `${order.orderNumber} was accepted by the notary for ${order.meeting.date} at ${order.meeting.time}.`,
+    type: 'order',
+    linkId: order.orderNumber,
+  });
+
+  return await serializeOrderDetail(order);
+};
+
+export const rejectOrderMeeting = async (
+  auth: AuthContext,
+  id: string,
+  payload: { note: string; preferredDate?: string; preferredTime?: string },
+) => {
+  if (auth.role !== 'notary') {
+    throw new HttpError(StatusCodes.FORBIDDEN, 'Only notaries can reject schedule requests');
+  }
+
+  const order = await findOrder(id, auth);
+
+  if (!order.meeting) {
+    throw new HttpError(StatusCodes.BAD_REQUEST, 'No schedule request exists for this order');
+  }
+
+  if (order.meeting.status === 'confirmed') {
+    throw new HttpError(StatusCodes.BAD_REQUEST, 'Confirmed schedules cannot be rejected');
+  }
+
+  order.meeting.status = 'rejected';
+  order.meeting.rejectedAt = new Date();
+  order.meeting.rejectedByRole = 'notary';
+  order.meeting.rejectionNote = payload.note;
+  order.meeting.preferredDate = payload.preferredDate;
+  order.meeting.preferredTime = payload.preferredTime;
+  pushTimeline(order, 'Schedule rejected by notary', 'red');
+
+  await order.save();
+
+  if (order.companyId) {
+    const preferred = [payload.preferredDate, payload.preferredTime].filter(Boolean).join(' at ');
+    void createNotificationSafely({
+      recipientId: order.companyId,
+      recipientRole: 'company',
+      title: 'Schedule Rejected',
+      message: `The notary rejected ${order.orderNumber}.${preferred ? ` Preferred: ${preferred}.` : ''} Note: ${payload.note}`,
+      type: 'order',
+      linkId: order.orderNumber,
+    });
+  }
+
+  void notifyAdminsSafely({
+    title: 'Schedule Rejected',
+    message: `The notary rejected the schedule for ${order.orderNumber}.`,
     type: 'order',
     linkId: order.orderNumber,
   });

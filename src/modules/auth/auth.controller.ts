@@ -40,6 +40,24 @@ const notificationsSchema = z
   })
   .optional();
 
+const optionalTrimmedString = () =>
+  z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.string().trim().optional(),
+  );
+
+const optionalNonEmptyString = () =>
+  z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.string().trim().min(1).optional(),
+  );
+
+const optionalEmailString = () =>
+  z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.string().trim().email().optional(),
+  );
+
 const profileSchema = z.object({
   fullName: z.string().trim().min(1, 'Full name is required'),
   email: z.string().trim().email('Valid email is required'),
@@ -90,27 +108,27 @@ const resetPasswordSchema = verifyOtpSchema
   });
 
 const companyProfileSchema = z.object({
-  contactPerson: z.string().trim().min(1).optional(),
-  businessEmail: z.string().trim().email().optional(),
-  phone: z.string().trim().optional(),
-  companyName: z.string().trim().min(1).optional(),
-  contactEmail: z.string().trim().email().optional(),
-  address: z.string().trim().optional(),
+  contactPerson: optionalNonEmptyString(),
+  businessEmail: optionalEmailString(),
+  phone: optionalTrimmedString(),
+  companyName: optionalNonEmptyString(),
+  contactEmail: optionalEmailString(),
+  address: optionalTrimmedString(),
   state: z.enum(usStateCodes).optional(),
-  avatarUrl: z.string().trim().optional(),
+  avatarUrl: optionalTrimmedString(),
   notifications: notificationsSchema,
 });
 
 const notaryProfileSchema = z.object({
-  fullName: z.string().trim().min(1).optional(),
-  specialty: z.string().trim().min(1).optional(),
-  email: z.string().trim().email().optional(),
-  phone: z.string().trim().optional(),
-  license: z.string().trim().min(1).optional(),
-  expiry: z.string().trim().optional(),
-  serviceArea: z.string().trim().optional(),
+  fullName: optionalNonEmptyString(),
+  specialty: optionalNonEmptyString(),
+  email: optionalEmailString(),
+  phone: optionalTrimmedString(),
+  license: optionalTrimmedString(),
+  expiry: optionalTrimmedString(),
+  serviceArea: optionalTrimmedString(),
   state: z.enum(usStateCodes).optional(),
-  avatarUrl: z.string().trim().optional(),
+  avatarUrl: optionalTrimmedString(),
   notifications: notificationsSchema,
 });
 

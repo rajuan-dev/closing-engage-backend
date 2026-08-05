@@ -17,6 +17,7 @@ import {
   getOrder,
   listOrderTimeline,
   listOrders,
+  rejectOrderMeeting,
   scheduleOrderMeeting,
   updateOrder,
   updateOrderStatus,
@@ -87,6 +88,12 @@ const statusPayloadSchema = z.object({
 const meetingPayloadSchema = z.object({
   signingDate: nonEmpty,
   signingTime: nonEmpty,
+});
+
+const meetingRejectionPayloadSchema = z.object({
+  note: nonEmpty,
+  preferredDate: z.string().trim().optional(),
+  preferredTime: z.string().trim().optional(),
 });
 
 const assignNotaryPayloadSchema = z
@@ -350,6 +357,18 @@ export const patchOrderMeetingConfirmation = asyncHandler(async (req: Request, r
   return sendResponse(res, {
     success: true,
     message: 'Meeting confirmed successfully',
+    data: order,
+  });
+});
+
+export const patchOrderMeetingRejection = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = idParamsSchema.parse(req.params);
+  const payload = meetingRejectionPayloadSchema.parse(req.body);
+  const order = await rejectOrderMeeting(req.auth!, id, payload);
+
+  return sendResponse(res, {
+    success: true,
+    message: 'Meeting rejected successfully',
     data: order,
   });
 });

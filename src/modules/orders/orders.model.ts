@@ -36,13 +36,18 @@ export interface IOrderTimelineEvent {
 }
 
 export interface IOrderMeeting {
-  status: 'scheduled' | 'confirmed';
+  status: 'scheduled' | 'confirmed' | 'rejected';
   date: string;
   time: string;
   scheduledByRole: 'admin' | 'company' | 'notary';
   scheduledAt: Date;
   confirmedByRole?: 'admin' | 'company' | 'notary';
   confirmedAt?: Date;
+  rejectedByRole?: 'notary';
+  rejectedAt?: Date;
+  rejectionNote?: string;
+  preferredDate?: string;
+  preferredTime?: string;
 }
 
 export interface IOrder extends Document {
@@ -102,13 +107,18 @@ const orderTimelineEventSchema = new Schema<IOrderTimelineEvent>(
 
 const orderMeetingSchema = new Schema<IOrderMeeting>(
   {
-    status: { type: String, enum: ['scheduled', 'confirmed'], required: true, default: 'scheduled' },
+    status: { type: String, enum: ['scheduled', 'confirmed', 'rejected'], required: true, default: 'scheduled' },
     date: { type: String, required: true, trim: true },
     time: { type: String, required: true, trim: true },
     scheduledByRole: { type: String, enum: ['admin', 'company', 'notary'], required: true },
     scheduledAt: { type: Date, required: true, default: Date.now },
     confirmedByRole: { type: String, enum: ['admin', 'company', 'notary'] },
     confirmedAt: { type: Date },
+    rejectedByRole: { type: String, enum: ['notary'] },
+    rejectedAt: { type: Date },
+    rejectionNote: { type: String, trim: true },
+    preferredDate: { type: String, trim: true },
+    preferredTime: { type: String, trim: true },
   },
   { _id: false },
 );
