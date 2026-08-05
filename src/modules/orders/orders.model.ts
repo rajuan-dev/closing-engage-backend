@@ -43,7 +43,7 @@ export interface IOrderMeeting {
   scheduledAt: Date;
   confirmedByRole?: 'admin' | 'company' | 'notary';
   confirmedAt?: Date;
-  rejectedByRole?: 'notary';
+  rejectedByRole?: 'company' | 'notary' | 'admin';
   rejectedAt?: Date;
   rejectionNote?: string;
   preferredDate?: string;
@@ -114,7 +114,7 @@ const orderMeetingSchema = new Schema<IOrderMeeting>(
     scheduledAt: { type: Date, required: true, default: Date.now },
     confirmedByRole: { type: String, enum: ['admin', 'company', 'notary'] },
     confirmedAt: { type: Date },
-    rejectedByRole: { type: String, enum: ['notary'] },
+    rejectedByRole: { type: String, enum: ['company', 'notary', 'admin'] },
     rejectedAt: { type: Date },
     rejectionNote: { type: String, trim: true },
     preferredDate: { type: String, trim: true },

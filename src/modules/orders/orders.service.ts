@@ -999,10 +999,6 @@ export const scheduleOrderMeeting = async (
 };
 
 export const confirmOrderMeeting = async (auth: AuthContext, id: string) => {
-  if (auth.role !== 'notary') {
-    throw new HttpError(StatusCodes.FORBIDDEN, 'Only notaries can accept schedule requests');
-  }
-
   const order = await findOrder(id, auth);
 
   if (!order.meeting) {
@@ -1013,6 +1009,19 @@ export const confirmOrderMeeting = async (auth: AuthContext, id: string) => {
     return await serializeOrderDetail(order);
   }
 
+  if (auth.role !== 'notary') {
+    if (order.meeting.status !== 'rejected' || !order.meeting.preferredDate || !order.meeting.preferredTime) {
+      throw new HttpError(StatusCodes.FORBIDDEN, 'Only notaries can accept schedule requests');
+    }
+
+    order.signingDate = order.meeting.preferredDate;
+    order.signingTime = order.meeting.preferredTime;
+    order.meeting.date = order.meeting.preferredDate;
+    order.meeting.time = order.meeting.preferredTime;
+  } else if (order.meeting.status === 'rejected' && order.meeting.rejectedByRole !== 'company') {
+    throw new HttpError(StatusCodes.BAD_REQUEST, 'This schedule is waiting for the title company to respond');
+  }
+
   order.meeting.status = 'confirmed';
   order.meeting.confirmedAt = new Date();
   order.meeting.confirmedByRole = auth.role;
@@ -1021,7 +1030,13 @@ export const confirmOrderMeeting = async (auth: AuthContext, id: string) => {
   order.meeting.rejectionNote = undefined;
   order.meeting.preferredDate = undefined;
   order.meeting.preferredTime = undefined;
-  pushTimeline(order, `Schedule accepted by notary for ${order.meeting.date} at ${order.meeting.time}`, 'green');
+  pushTimeline(
+    order,
+    auth.role === 'notary'
+      ? `Schedule accepted by notary for ${order.meeting.date} at ${order.meeting.time}`
+      : `Reschedule accepted by title company for ${order.meeting.date} at ${order.meeting.time}`,
+    'green',
+  );
 
   await order.save();
 
@@ -1031,6 +1046,17 @@ export const confirmOrderMeeting = async (auth: AuthContext, id: string) => {
       recipientRole: 'company',
       title: 'Schedule Accepted',
       message: `The notary accepted ${order.orderNumber} for ${order.meeting.date} at ${order.meeting.time}.`,
+      type: 'order',
+      linkId: order.orderNumber,
+    });
+  }
+
+  if (auth.role !== 'notary' && order.assignedNotaryId) {
+    void createNotificationSafely({
+      recipientId: order.assignedNotaryId,
+      recipientRole: 'notary',
+      title: 'Reschedule Accepted',
+      message: `The title company accepted your preferred time for ${order.orderNumber}: ${order.meeting.date} at ${order.meeting.time}.`,
       type: 'order',
       linkId: order.orderNumber,
     });
@@ -1051,10 +1077,6 @@ export const rejectOrderMeeting = async (
   id: string,
   payload: { note: string; preferredDate?: string; preferredTime?: string },
 ) => {
-  if (auth.role !== 'notary') {
-    throw new HttpError(StatusCodes.FORBIDDEN, 'Only notaries can reject schedule requests');
-  }
-
   const order = await findOrder(id, auth);
 
   if (!order.meeting) {
@@ -1065,17 +1087,29 @@ export const rejectOrderMeeting = async (
     throw new HttpError(StatusCodes.BAD_REQUEST, 'Confirmed schedules cannot be rejected');
   }
 
-  order.meeting.status = 'rejected';
+  if (auth.role !== 'notary' && order.meeting.status !== 'rejected') {
+    throw new HttpError(StatusCodes.BAD_REQUEST, 'Company users can only reject a notary reschedule request');
+  }
+
   order.meeting.rejectedAt = new Date();
-  order.meeting.rejectedByRole = 'notary';
+  order.meeting.rejectedByRole = auth.role === 'admin' ? 'admin' : auth.role;
   order.meeting.rejectionNote = payload.note;
-  order.meeting.preferredDate = payload.preferredDate;
-  order.meeting.preferredTime = payload.preferredTime;
-  pushTimeline(order, 'Schedule rejected by notary', 'red');
+
+  if (auth.role === 'notary') {
+    order.meeting.status = 'rejected';
+    order.meeting.preferredDate = payload.preferredDate;
+    order.meeting.preferredTime = payload.preferredTime;
+  } else {
+    order.meeting.status = 'scheduled';
+    order.meeting.preferredDate = undefined;
+    order.meeting.preferredTime = undefined;
+  }
+
+  pushTimeline(order, auth.role === 'notary' ? 'Reschedule requested by notary' : 'Reschedule request rejected by title company', 'red');
 
   await order.save();
 
-  if (order.companyId) {
+  if (auth.role === 'notary' && order.companyId) {
     const preferred = [payload.preferredDate, payload.preferredTime].filter(Boolean).join(' at ');
     void createNotificationSafely({
       recipientId: order.companyId,
@@ -1087,9 +1121,23 @@ export const rejectOrderMeeting = async (
     });
   }
 
+  if (auth.role !== 'notary' && order.assignedNotaryId) {
+    void createNotificationSafely({
+      recipientId: order.assignedNotaryId,
+      recipientRole: 'notary',
+      title: 'Reschedule Rejected',
+      message: `The title company rejected your reschedule request for ${order.orderNumber}. Note: ${payload.note}`,
+      type: 'order',
+      linkId: order.orderNumber,
+    });
+  }
+
   void notifyAdminsSafely({
-    title: 'Schedule Rejected',
-    message: `The notary rejected the schedule for ${order.orderNumber}.`,
+    title: auth.role === 'notary' ? 'Reschedule Requested' : 'Reschedule Rejected',
+    message:
+      auth.role === 'notary'
+        ? `The notary requested a new schedule for ${order.orderNumber}.`
+        : `The title company rejected the notary reschedule request for ${order.orderNumber}.`,
     type: 'order',
     linkId: order.orderNumber,
   });

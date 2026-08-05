@@ -19,7 +19,7 @@ router.patch('/:id/accept-open', requireNotaryAuth, orderController.patchAcceptO
 router.patch('/:id/printed-confirmation', orderController.patchOrderPrintedConfirmation);
 router.patch('/:id/meeting', orderController.patchOrderMeeting);
 router.patch('/:id/meeting/confirm', orderController.patchOrderMeetingConfirmation);
-router.patch('/:id/meeting/reject', requireNotaryAuth, orderController.patchOrderMeetingRejection);
+router.patch('/:id/meeting/reject', orderController.patchOrderMeetingRejection);
 router.get('/:id/timeline', orderController.getOrderTimeline);
 
 export const orderRouter = router;
