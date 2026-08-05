@@ -53,9 +53,11 @@ export interface IOrder extends Document {
   signerName?: string;
   signerPhone?: string;
   city?: string;
+  state?: string;
   propertyAddress: string;
   signingDate: string;
   signingTime: string;
+  price?: number;
   loanType?: LoanType;
   scanbacksRequired: boolean;
   status: OrderStatus;
@@ -120,9 +122,11 @@ const orderSchema = new Schema<IOrder>(
     signerName: { type: String, trim: true },
     signerPhone: { type: String, trim: true },
     city: { type: String, trim: true, index: true },
+    state: { type: String, trim: true, uppercase: true, index: true },
     propertyAddress: { type: String, required: true, trim: true },
     signingDate: { type: String, required: true, trim: true },
     signingTime: { type: String, required: true, trim: true },
+    price: { type: Number, min: 0 },
     loanType: { type: String, enum: loanTypes },
     scanbacksRequired: { type: Boolean, default: false },
     status: { type: String, enum: orderStatuses, default: 'Received', index: true },

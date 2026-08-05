@@ -3,11 +3,11 @@ import { Types } from 'mongoose';
 
 import { HttpError } from '../../core/http-error';
 import { buildDocumentS3Key } from '../../utils/s3';
+import { normalizeUsStateCode } from '../../utils/us-states';
 import { ClosingDocument } from '../documents/documents.model';
 import {
   createNotificationSafely,
   expireNotificationsByLinkIdSafely,
-  notifyActiveNotariesSafely,
   notifyNotariesByIdsSafely,
   notifyAdminsSafely,
 } from '../notifications/notifications.service';
@@ -120,6 +120,7 @@ const doesNotaryServiceAreaMatchCity = (serviceArea: string | undefined, city: s
 
 type OpenOrderNotificationRecipient = {
   _id: Types.ObjectId;
+  state?: string;
   notifications?: {
     email?: boolean;
     orders?: boolean;
@@ -127,12 +128,19 @@ type OpenOrderNotificationRecipient = {
   };
 };
 
-const findEligibleOpenOrderNotaries = async () => {
-  const activeNotaries = (await NotaryUser.find({ status: { $ne: 'Inactive' } })
-    .select('_id notifications')
-    .lean()) as OpenOrderNotificationRecipient[];
+const findEligibleOpenOrderNotaries = async (orderState?: string) => {
+  const normalizedOrderState = normalizeUsStateCode(orderState);
+  if (!normalizedOrderState) {
+    return [];
+  }
 
-  return activeNotaries.filter((notary) => notary.notifications?.orders !== false);
+  return (await NotaryUser.find({
+    status: { $ne: 'Inactive' },
+    state: normalizedOrderState,
+    'notifications.orders': { $ne: false },
+  })
+    .select('_id state notifications')
+    .lean()) as OpenOrderNotificationRecipient[];
 };
 
 const pushTimeline = (order: IOrder, title: string, tone: 'blue' | 'slate' | 'green' | 'red' = 'blue'): void => {
@@ -179,14 +187,20 @@ const scopedQuery = (auth: AuthContext, base: Record<string, unknown> = {}) => {
   return { ...base, assignedNotaryId: auth.id };
 };
 
-const scopedOrderQuery = (auth: AuthContext, base: Record<string, unknown> = {}) => {
+const scopedOrderQuery = async (auth: AuthContext, base: Record<string, unknown> = {}) => {
   if (auth.role !== 'notary') {
     return scopedQuery(auth, base);
   }
 
+  const notary = await NotaryUser.findById(auth.id).select('state').lean();
+  const notaryState = normalizeUsStateCode(notary?.state);
+
   return {
     ...base,
-    $or: [{ assignedNotaryId: auth.id }, { openForAll: true }],
+    $or: [
+      { assignedNotaryId: auth.id },
+      ...(notaryState ? [{ openForAll: true, state: notaryState }] : []),
+    ],
   };
 };
 
@@ -204,7 +218,7 @@ const assertCompanyPermission = (
 
 const findOrder = async (id: string, auth: AuthContext): Promise<IOrder> => {
   assertCompanyPermission(auth, 'viewOrders', 'You do not have permission to view orders');
-  const order = await Order.findOne(scopedOrderQuery(auth, orderLookupQuery(id)));
+  const order = await Order.findOne(await scopedOrderQuery(auth, orderLookupQuery(id)));
 
   if (!order) {
     throw new HttpError(StatusCodes.NOT_FOUND, 'Order not found');
@@ -304,6 +318,7 @@ export const serializeOrderDetail = async (order: IOrder) => {
     companyId: order.companyId?.toString() ?? '',
     clientName: order.clientName || order.signerName || '',
     city: resolveOrderCity(order),
+    state: order.state ?? '',
     signerName: order.signerName ?? '',
     signerPhone: order.signerPhone ?? '',
     propertyAddress: order.propertyAddress,
@@ -312,6 +327,8 @@ export const serializeOrderDetail = async (order: IOrder) => {
     date: order.signingDate,
     signingTime: order.signingTime,
     time: order.signingTime,
+    price: order.price ?? null,
+    pricing: order.price ?? null,
     loanType: order.loanType ?? '',
     scanbacksRequired: order.scanbacksRequired,
     status: order.status,
@@ -344,11 +361,14 @@ const serializePortalOrder = (order: IOrder) => ({
   companyName: order.titleCompany,
   propertyAddress: order.propertyAddress,
   city: resolveOrderCity(order),
+  state: order.state ?? '',
   location: order.propertyAddress,
   notary: order.assignedNotaryName === 'Unassigned' ? '--' : order.assignedNotaryName,
   status: order.status,
   date: order.signingDate,
   time: order.signingTime,
+  price: order.price ?? null,
+  pricing: order.price ?? null,
   loanType: order.loanType ?? '',
   scanbacksRequired: order.scanbacksRequired,
   preferredNotaryName: order.preferredNotaryName ?? '',
@@ -359,7 +379,7 @@ const serializePortalOrder = (order: IOrder) => ({
 
 export const listOrders = async (auth: AuthContext, filters: { status?: OrderStatus; search?: string }) => {
   assertCompanyPermission(auth, 'viewOrders', 'You do not have permission to view orders');
-  const query: Record<string, unknown> = scopedOrderQuery(auth);
+  const query: Record<string, unknown> = await scopedOrderQuery(auth);
 
   if (filters.status) {
     query.status = filters.status;
@@ -405,11 +425,13 @@ export const createOrder = async (auth: AuthContext, payload: {
   companyId?: string;
   clientName?: string;
   city?: string;
+  state?: string;
   propertyAddress: string;
   signerName?: string;
   signerPhone?: string;
   signingDate: string;
   signingTime: string;
+  price?: number;
   loanType?: LoanType;
   scanbacksRequired?: boolean;
   status: OrderStatus;
@@ -453,11 +475,13 @@ export const createOrder = async (auth: AuthContext, payload: {
     companyId,
     clientName: payload.clientName || payload.signerName,
     city: payload.city?.trim() || extractCityFromPropertyAddress(payload.propertyAddress),
+    state: payload.state,
     propertyAddress: payload.propertyAddress,
     signerName: payload.signerName || payload.clientName,
     signerPhone: payload.signerPhone,
     signingDate: payload.signingDate,
     signingTime: payload.signingTime,
+    price: payload.price,
     loanType: payload.loanType,
     scanbacksRequired: payload.scanbacksRequired ?? false,
     status: payload.status,
@@ -559,11 +583,13 @@ export const updateOrder = async (
     titleCompany: string;
     clientName?: string;
     city?: string;
+    state?: string;
     propertyAddress: string;
     signerName?: string;
     signerPhone?: string;
     signingDate: string;
     signingTime: string;
+    price?: number;
     loanType?: LoanType;
     scanbacksRequired?: boolean;
     status: OrderStatus;
@@ -603,6 +629,7 @@ export const updateOrder = async (
     order.signerName = payload.clientName;
   }
   if (payload.city !== undefined) order.city = payload.city.trim();
+  if (payload.state !== undefined) order.state = payload.state;
   if (payload.propertyAddress !== undefined) order.propertyAddress = payload.propertyAddress;
   if (payload.propertyAddress !== undefined && payload.city === undefined) {
     order.city = extractCityFromPropertyAddress(payload.propertyAddress);
@@ -611,6 +638,7 @@ export const updateOrder = async (
   if (payload.signerPhone !== undefined) order.signerPhone = payload.signerPhone;
   if (payload.signingDate !== undefined) order.signingDate = payload.signingDate;
   if (payload.signingTime !== undefined) order.signingTime = payload.signingTime;
+  if (payload.price !== undefined) order.price = payload.price;
   if (payload.loanType !== undefined) order.loanType = payload.loanType;
   if (payload.scanbacksRequired !== undefined) order.scanbacksRequired = payload.scanbacksRequired;
   if (payload.status !== undefined && payload.status !== order.status) {
@@ -677,7 +705,7 @@ export const assignNotary = async (
   const order = await findOrder(id, auth);
 
   if (payload.openForAll) {
-    const recipients = await findEligibleOpenOrderNotaries();
+    const recipients = await findEligibleOpenOrderNotaries(order.state);
 
     order.assignedNotaryId = undefined;
     order.assignedNotaryName = 'Open for All';
@@ -702,9 +730,9 @@ export const assignNotary = async (
         },
       );
     } else {
-      void notifyActiveNotariesSafely({
+      void notifyAdminsSafely({
         title: 'Open Order Available',
-        message: openOrderMessage,
+        message: `${order.orderNumber} was opened for ${order.state || 'an unspecified state'}, but no matching active notaries were found.`,
         type: 'order',
         linkId: order.orderNumber,
       });
@@ -786,7 +814,7 @@ export const acceptOpenOrder = async (auth: AuthContext, id: string) => {
     throw new HttpError(StatusCodes.FORBIDDEN, 'Only notaries can accept open orders');
   }
 
-  const notary = await NotaryUser.findById(auth.id).select('_id fullName status');
+  const notary = await NotaryUser.findById(auth.id).select('_id fullName status state');
   if (!notary || notary.status === 'Inactive') {
     throw new HttpError(StatusCodes.UNAUTHORIZED, 'Active notary account not found');
   }
@@ -810,6 +838,7 @@ export const acceptOpenOrder = async (auth: AuthContext, id: string) => {
     {
       ...orderLookupQuery(id),
       openForAll: true,
+      ...(normalizeUsStateCode(notary.state) ? { state: normalizeUsStateCode(notary.state) } : { state: '__NO_MATCH__' }),
       $or: [{ assignedNotaryId: { $exists: false } }, { assignedNotaryId: null }],
     },
     {
@@ -825,7 +854,7 @@ export const acceptOpenOrder = async (auth: AuthContext, id: string) => {
   );
 
   if (!claimedOrder) {
-    throw new HttpError(StatusCodes.CONFLICT, 'Order is already accepted by another notary.');
+    throw new HttpError(StatusCodes.CONFLICT, 'Order is already accepted or not available for your state.');
   }
 
   pushTimeline(claimedOrder, `Order accepted by ${notary.fullName}`, 'green');

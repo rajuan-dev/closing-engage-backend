@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import { sendResponse } from '../../core/response';
 import { asyncHandler } from '../../utils/async-handler';
+import { usStateCodes } from '../../utils/us-states';
 import {
   getAdminById,
   getCompanyById,
@@ -95,6 +96,7 @@ const companyProfileSchema = z.object({
   companyName: z.string().trim().min(1).optional(),
   contactEmail: z.string().trim().email().optional(),
   address: z.string().trim().optional(),
+  state: z.enum(usStateCodes).optional(),
   avatarUrl: z.string().trim().optional(),
   notifications: notificationsSchema,
 });
@@ -107,6 +109,7 @@ const notaryProfileSchema = z.object({
   license: z.string().trim().min(1).optional(),
   expiry: z.string().trim().optional(),
   serviceArea: z.string().trim().optional(),
+  state: z.enum(usStateCodes).optional(),
   avatarUrl: z.string().trim().optional(),
   notifications: notificationsSchema,
 });

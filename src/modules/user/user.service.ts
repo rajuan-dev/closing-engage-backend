@@ -97,6 +97,7 @@ const serializeCompanyUser = (company: ICompanyUser) => ({
   status: company.status,
   createdDate: formatDate(company.createdAt),
   address: company.address ?? '',
+  state: company.state ?? '',
   contactEmail: company.contactEmail ?? '',
   userName: company.userName ?? '',
   avatarUrl: company.avatarUrl ?? '',
@@ -126,6 +127,7 @@ const serializeNotaryUser = (notary: INotaryUser) => ({
   createdDate: formatDate(notary.createdAt),
   expiry: notary.expiry ?? '',
   serviceArea: notary.serviceArea ?? '',
+  state: notary.state ?? '',
   userName: notary.userName ?? '',
   avatarUrl: notary.avatarUrl ?? '',
   sendInvite: notary.sendInvite ?? false,
@@ -321,6 +323,7 @@ export const createCompany = async (payload: {
   phone: string;
   contactPerson: string;
   address?: string;
+  state?: string;
   contactEmail?: string;
   userName?: string;
   password?: string;
@@ -336,6 +339,7 @@ export const createCompany = async (payload: {
     ...payload,
     businessEmail: payload.businessEmail.trim().toLowerCase(),
     contactEmail: payload.contactEmail?.trim().toLowerCase(),
+    state: payload.state,
     passwordHash,
     adminVisiblePasswordCipher: encryptVisiblePassword(temporaryPassword),
     passwordChangedBy: 'admin',
@@ -361,6 +365,7 @@ export const updateCompany = async (
     phone: string;
     contactPerson: string;
     address?: string;
+    state?: string;
     contactEmail?: string;
     userName?: string;
     password?: string;
@@ -381,6 +386,7 @@ export const updateCompany = async (
   if (payload.phone !== undefined) company.phone = payload.phone;
   if (payload.contactPerson !== undefined) company.contactPerson = payload.contactPerson;
   if (payload.address !== undefined) company.address = payload.address;
+  if (payload.state !== undefined) company.state = payload.state;
   if (payload.contactEmail !== undefined) company.contactEmail = payload.contactEmail.trim().toLowerCase();
   if (payload.userName !== undefined) company.userName = payload.userName;
   if (payload.avatarUrl !== undefined) company.avatarUrl = payload.avatarUrl;
@@ -427,6 +433,7 @@ export const createNotary = async (payload: {
   license: string;
   expiry?: string;
   serviceArea?: string;
+  state?: string;
   userName?: string;
   password?: string;
   sendInvite?: boolean;
@@ -440,6 +447,7 @@ export const createNotary = async (payload: {
     ...payload,
     specialty: payload.specialty || 'Mobile Loan Signing Agent',
     email: payload.email.trim().toLowerCase(),
+    state: payload.state,
     passwordHash,
     adminVisiblePasswordCipher: encryptVisiblePassword(temporaryPassword),
     passwordChangedBy: 'admin',
@@ -467,6 +475,7 @@ export const updateNotary = async (
     license: string;
     expiry?: string;
     serviceArea?: string;
+    state?: string;
     userName?: string;
     password?: string;
     sendInvite?: boolean;
@@ -487,6 +496,7 @@ export const updateNotary = async (
   if (payload.license !== undefined) notary.license = payload.license;
   if (payload.expiry !== undefined) notary.expiry = payload.expiry;
   if (payload.serviceArea !== undefined) notary.serviceArea = payload.serviceArea;
+  if (payload.state !== undefined) notary.state = payload.state;
   if (payload.userName !== undefined) notary.userName = payload.userName;
   if (payload.sendInvite !== undefined) notary.sendInvite = payload.sendInvite;
   if (payload.status !== undefined) notary.status = payload.status;

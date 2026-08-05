@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import { sendResponse } from '../../core/response';
 import { asyncHandler } from '../../utils/async-handler';
+import { usStateCodes } from '../../utils/us-states';
 import {
   getNotaryCredentialsByAdmin,
   reviewNotaryCredential,
@@ -25,6 +26,7 @@ const companySchema = z.object({
   phone: z.string().trim().default(''),
   contactPerson: z.string().trim().min(1, 'Contact person is required'),
   address: z.string().trim().optional(),
+  state: z.enum(usStateCodes).optional(),
   contactEmail: z.string().trim().optional(),
   userName: z.string().trim().min(1, 'User name is required'),
   password: z.string().trim().optional(),
@@ -44,6 +46,7 @@ const notarySchema = z.object({
   license: z.string().trim().default(''),
   expiry: z.string().trim().optional(),
   serviceArea: z.string().trim().optional(),
+  state: z.enum(usStateCodes).optional(),
   userName: z.string().trim().min(1, 'User name is required'),
   password: z.string().trim().optional(),
   sendInvite: z.boolean().optional(),

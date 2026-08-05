@@ -142,6 +142,7 @@ const sanitizeCompany = (company: ICompanyUser) => ({
   status: company.status,
   createdDate: formatDate(company.createdAt),
   address: company.address ?? '',
+  state: company.state ?? '',
   contactEmail: company.contactEmail ?? '',
   avatarUrl: company.avatarUrl ?? '',
   userName: company.userName ?? '',
@@ -193,6 +194,7 @@ const sanitizeNotary = (notary: INotaryUser) => ({
   createdDate: formatDate(notary.createdAt),
   expiry: notary.expiry ?? '',
   serviceArea: notary.serviceArea ?? '',
+  state: notary.state ?? '',
   avatarUrl: notary.avatarUrl ?? '',
   userName: notary.userName ?? '',
   notifications: notary.notifications || { email: true, orders: true, documents: true },
@@ -816,6 +818,7 @@ export const updateCompanyProfile = async (
     companyName: string;
     contactEmail: string;
     address: string;
+    state: string;
     avatarUrl: string;
     notifications: {
       email: boolean;
@@ -836,6 +839,7 @@ export const updateCompanyProfile = async (
   if (updates.companyName !== undefined) company.companyName = updates.companyName;
   if (updates.contactEmail !== undefined) company.contactEmail = normalizeEmail(updates.contactEmail);
   if (updates.address !== undefined) company.address = updates.address;
+  if (updates.state !== undefined) company.state = updates.state;
   if (updates.avatarUrl !== undefined) company.avatarUrl = updates.avatarUrl;
   if (updates.notifications !== undefined) company.notifications = updates.notifications;
 
@@ -853,6 +857,7 @@ export const updateNotaryProfile = async (
     license: string;
     expiry: string;
     serviceArea: string;
+    state: string;
     avatarUrl: string;
     notifications: {
       email: boolean;
@@ -874,6 +879,7 @@ export const updateNotaryProfile = async (
   if (updates.license !== undefined) notary.license = updates.license;
   if (updates.expiry !== undefined) notary.expiry = updates.expiry;
   if (updates.serviceArea !== undefined) notary.serviceArea = updates.serviceArea;
+  if (updates.state !== undefined) notary.state = updates.state;
   if (updates.avatarUrl !== undefined) notary.avatarUrl = updates.avatarUrl;
   if (updates.notifications !== undefined) notary.notifications = updates.notifications;
 

@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { HttpError } from '../../core/http-error';
 import { sendResponse } from '../../core/response';
 import { asyncHandler } from '../../utils/async-handler';
+import { normalizeUsStateCode } from '../../utils/us-states';
 import { loanTypes, notaryPreferences, orderPriorities, orderStatuses } from './orders.model';
 import {
   acceptOpenOrder,
@@ -56,6 +57,9 @@ const orderPayloadSchema = z.object({
   city: z.string().trim().optional(),
   state: z.string().trim().optional(),
   zip: z.string().trim().optional(),
+  price: z.coerce.number().min(0).optional(),
+  pricing: z.coerce.number().min(0).optional(),
+  orderPrice: z.coerce.number().min(0).optional(),
   signerName: z.string().trim().optional(),
   signerPhone: z.string().trim().optional(),
   signingDate: z.string().trim().optional(),
@@ -120,6 +124,8 @@ const normalizeOrderPayload = (payload: z.infer<typeof orderPayloadSchema>) => {
   const signingDate = payload.signingDate || payload.date;
   const preferredNotary = payload.preferredNotary?.trim();
   const city = payload.city?.trim();
+  const state = normalizeUsStateCode(payload.state);
+  const price = payload.price ?? payload.pricing ?? payload.orderPrice;
 
   if (!propertyAddress) {
     throw new HttpError(StatusCodes.BAD_REQUEST, 'Property address is required');
@@ -132,6 +138,8 @@ const normalizeOrderPayload = (payload: z.infer<typeof orderPayloadSchema>) => {
   return {
     ...payload,
     city,
+    state,
+    price,
     propertyAddress,
     signingDate,
     signingTime: payload.signingTime || 'TBD',
@@ -158,10 +166,14 @@ const normalizeOrderUpdatePayload = (payload: z.infer<typeof orderUpdatePayloadS
   const signingDate = payload.signingDate || payload.date;
   const preferredNotary = payload.preferredNotary?.trim();
   const city = payload.city?.trim();
+  const state = normalizeUsStateCode(payload.state);
+  const price = payload.price ?? payload.pricing ?? payload.orderPrice;
 
   return {
     ...payload,
     ...(city !== undefined ? { city } : {}),
+    ...(payload.state !== undefined ? { state } : {}),
+    ...(price !== undefined ? { price } : {}),
     ...(propertyAddress ? { propertyAddress } : {}),
     ...(signingDate ? { signingDate } : {}),
     ...(payload.signingTime ? { signingTime: payload.signingTime } : {}),

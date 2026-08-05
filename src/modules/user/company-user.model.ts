@@ -8,6 +8,7 @@ export interface ICompanyUser extends Document {
   phone: string;
   status: 'Active' | 'Inactive' | 'Pending';
   address?: string;
+  state?: string;
   contactEmail?: string;
   avatarUrl?: string;
   userName?: string;
@@ -39,6 +40,7 @@ const companyUserSchema = new Schema<ICompanyUser>(
     phone: { type: String, default: '' },
     status: { type: String, enum: ['Active', 'Inactive', 'Pending'], default: 'Active' },
     address: { type: String },
+    state: { type: String, trim: true, uppercase: true, index: true },
     contactEmail: { type: String, trim: true, lowercase: true },
     avatarUrl: { type: String, trim: true },
     userName: { type: String, trim: true, unique: true, sparse: true },
