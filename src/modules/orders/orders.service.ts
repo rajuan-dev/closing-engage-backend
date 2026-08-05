@@ -716,8 +716,9 @@ export const assignNotary = async (
 
     await order.save();
 
+    const priceTag = typeof order.price === 'number' && order.price > 0 ? ` ($${order.price.toFixed(2)})` : '';
     const openOrderMessage =
-      `${order.orderNumber} is open for all notaries. Claim it from your notifications before another notary accepts it.`;
+      `${order.orderNumber}${priceTag} is open for all notaries. Claim it from your notifications before another notary accepts it.`;
 
     if (recipients.length > 0) {
       void notifyNotariesByIdsSafely(
