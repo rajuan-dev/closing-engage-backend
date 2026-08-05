@@ -135,6 +135,10 @@ const normalizeOrderPayload = (payload: z.infer<typeof orderPayloadSchema>) => {
     throw new HttpError(StatusCodes.BAD_REQUEST, 'Signing date is required');
   }
 
+  if (!state) {
+    throw new HttpError(StatusCodes.BAD_REQUEST, 'Valid US state is required');
+  }
+
   return {
     ...payload,
     city,
@@ -168,6 +172,10 @@ const normalizeOrderUpdatePayload = (payload: z.infer<typeof orderUpdatePayloadS
   const city = payload.city?.trim();
   const state = normalizeUsStateCode(payload.state);
   const price = payload.price ?? payload.pricing ?? payload.orderPrice;
+
+  if (payload.state !== undefined && !state) {
+    throw new HttpError(StatusCodes.BAD_REQUEST, 'Valid US state is required');
+  }
 
   return {
     ...payload,

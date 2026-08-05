@@ -5,6 +5,7 @@ import { StatusCodes } from 'http-status-codes';
 import { env } from '../../config/env';
 import { HttpError } from '../../core/http-error';
 import { logger } from '../../core/logger';
+import { normalizeUsStateCode } from '../../utils/us-states';
 import { sendEmail, buildEmailTemplate } from '../email/email.service';
 import { notifyAdminsSafely } from '../notifications/notifications.service';
 import { CompanyUser, ICompanyUser } from './company-user.model';
@@ -339,7 +340,7 @@ export const createCompany = async (payload: {
     ...payload,
     businessEmail: payload.businessEmail.trim().toLowerCase(),
     contactEmail: payload.contactEmail?.trim().toLowerCase(),
-    state: payload.state,
+    state: normalizeUsStateCode(payload.state),
     passwordHash,
     adminVisiblePasswordCipher: encryptVisiblePassword(temporaryPassword),
     passwordChangedBy: 'admin',
@@ -440,6 +441,11 @@ export const createNotary = async (payload: {
   status: 'Active' | 'Inactive' | 'Pending';
   verify?: boolean;
 }) => {
+  const notaryState = normalizeUsStateCode(payload.state);
+  if (!notaryState) {
+    throw new HttpError(StatusCodes.BAD_REQUEST, 'Valid US state is required');
+  }
+
   const temporaryPassword = payload.password || generateTemporaryPassword();
   const passwordHash = await bcrypt.hash(temporaryPassword, 12);
 
@@ -447,7 +453,7 @@ export const createNotary = async (payload: {
     ...payload,
     specialty: payload.specialty || 'Mobile Loan Signing Agent',
     email: payload.email.trim().toLowerCase(),
-    state: payload.state,
+    state: notaryState,
     passwordHash,
     adminVisiblePasswordCipher: encryptVisiblePassword(temporaryPassword),
     passwordChangedBy: 'admin',

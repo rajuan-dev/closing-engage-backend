@@ -1,5 +1,7 @@
 import { Document, Schema, Types, model } from 'mongoose';
 
+import { usStateCodes } from '../../utils/us-states';
+
 export type NotaryScreeningStatus = 'Pending' | 'Verified' | 'Failed';
 export type NotaryCredentialVerification = 'Auto-Verified' | 'Manual Review';
 export type NotaryCredentialStatus = 'Pending' | 'Approved' | 'Rejected';
@@ -82,7 +84,7 @@ const notaryUserSchema = new Schema<INotaryUser>(
     status: { type: String, enum: ['Active', 'Inactive', 'Pending'], default: 'Active' },
     expiry: { type: String },
     serviceArea: { type: String },
-    state: { type: String, trim: true, uppercase: true, index: true },
+    state: { type: String, enum: usStateCodes, trim: true, uppercase: true, index: true },
     avatarUrl: { type: String, trim: true },
     userName: { type: String, trim: true, unique: true, sparse: true },
     commissionAuthority: { type: String, trim: true, default: '' },

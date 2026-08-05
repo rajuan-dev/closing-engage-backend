@@ -6,6 +6,7 @@ import { StatusCodes } from 'http-status-codes';
 import { env } from '../../config/env';
 import { HttpError } from '../../core/http-error';
 import { logger } from '../../core/logger';
+import { normalizeUsStateCode } from '../../utils/us-states';
 import { sendResetOtpEmail } from '../email/email.service';
 import { ITeamMember, TeamMember } from '../team/team.model';
 import { CompanyUser, ICompanyUser } from '../user/company-user.model';
@@ -839,7 +840,13 @@ export const updateCompanyProfile = async (
   if (updates.companyName !== undefined) company.companyName = updates.companyName;
   if (updates.contactEmail !== undefined) company.contactEmail = normalizeEmail(updates.contactEmail);
   if (updates.address !== undefined) company.address = updates.address;
-  if (updates.state !== undefined) company.state = updates.state;
+  if (updates.state !== undefined) {
+    const state = normalizeUsStateCode(updates.state);
+    if (!state) {
+      throw new HttpError(StatusCodes.BAD_REQUEST, 'Valid US state is required');
+    }
+    company.state = state;
+  }
   if (updates.avatarUrl !== undefined) company.avatarUrl = updates.avatarUrl;
   if (updates.notifications !== undefined) company.notifications = updates.notifications;
 
@@ -879,7 +886,13 @@ export const updateNotaryProfile = async (
   if (updates.license !== undefined) notary.license = updates.license;
   if (updates.expiry !== undefined) notary.expiry = updates.expiry;
   if (updates.serviceArea !== undefined) notary.serviceArea = updates.serviceArea;
-  if (updates.state !== undefined) notary.state = updates.state;
+  if (updates.state !== undefined) {
+    const state = normalizeUsStateCode(updates.state);
+    if (!state) {
+      throw new HttpError(StatusCodes.BAD_REQUEST, 'Valid US state is required');
+    }
+    notary.state = state;
+  }
   if (updates.avatarUrl !== undefined) notary.avatarUrl = updates.avatarUrl;
   if (updates.notifications !== undefined) notary.notifications = updates.notifications;
 

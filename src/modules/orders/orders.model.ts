@@ -1,5 +1,7 @@
 import { Document, Schema, Types, model } from 'mongoose';
 
+import { usStateCodes } from '../../utils/us-states';
+
 export const orderStatuses = [
   'Received',
   'Assigned',
@@ -122,7 +124,7 @@ const orderSchema = new Schema<IOrder>(
     signerName: { type: String, trim: true },
     signerPhone: { type: String, trim: true },
     city: { type: String, trim: true, index: true },
-    state: { type: String, trim: true, uppercase: true, index: true },
+    state: { type: String, enum: usStateCodes, trim: true, uppercase: true, index: true },
     propertyAddress: { type: String, required: true, trim: true },
     signingDate: { type: String, required: true, trim: true },
     signingTime: { type: String, required: true, trim: true },

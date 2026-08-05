@@ -448,6 +448,11 @@ export const createOrder = async (auth: AuthContext, payload: {
 
   assertCompanyPermission(auth, 'createOrders', 'You do not have permission to create orders');
 
+  const orderState = normalizeUsStateCode(payload.state);
+  if (!orderState) {
+    throw new HttpError(StatusCodes.BAD_REQUEST, 'Valid US state is required');
+  }
+
   let orderNumber = generateOrderNumber();
   while (await Order.exists({ orderNumber })) {
     orderNumber = generateOrderNumber();
@@ -475,7 +480,7 @@ export const createOrder = async (auth: AuthContext, payload: {
     companyId,
     clientName: payload.clientName || payload.signerName,
     city: payload.city?.trim() || extractCityFromPropertyAddress(payload.propertyAddress),
-    state: payload.state,
+    state: orderState,
     propertyAddress: payload.propertyAddress,
     signerName: payload.signerName || payload.clientName,
     signerPhone: payload.signerPhone,

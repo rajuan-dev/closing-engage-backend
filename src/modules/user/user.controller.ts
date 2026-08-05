@@ -46,7 +46,7 @@ const notarySchema = z.object({
   license: z.string().trim().default(''),
   expiry: z.string().trim().optional(),
   serviceArea: z.string().trim().optional(),
-  state: z.enum(usStateCodes).optional(),
+  state: z.enum(usStateCodes, { message: 'Valid US state is required' }),
   userName: z.string().trim().min(1, 'User name is required'),
   password: z.string().trim().optional(),
   sendInvite: z.boolean().optional(),
