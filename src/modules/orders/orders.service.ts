@@ -55,6 +55,7 @@ const initialsFrom = (value: string): string =>
     .toUpperCase() || value.trim().slice(0, 2).toUpperCase();
 
 const generateOrderNumber = (): string => `#ORD-${Math.floor(10000 + Math.random() * 90000)}`;
+const notarySigningAvailableTitle = 'Signing Available';
 
 const normalizeAddress = (address: string): string => address.replace(/,\s*/g, '\n');
 
@@ -777,7 +778,7 @@ export const assignNotary = async (
       void notifyNotariesByIdsSafely(
         recipients.map((recipient) => recipient._id),
         {
-          title: 'Open Order Available',
+          title: notarySigningAvailableTitle,
           message: openOrderMessage,
           type: 'order',
           linkId: order.orderNumber,
@@ -883,7 +884,6 @@ export const acceptOpenOrder = async (auth: AuthContext, id: string) => {
       recipientRole: 'notary',
       linkId: alreadyAssignedToMe.orderNumber,
       type: 'order',
-      title: 'Open Order Available',
     });
     return serializePortalOrder(alreadyAssignedToMe);
   }
@@ -918,7 +918,6 @@ export const acceptOpenOrder = async (auth: AuthContext, id: string) => {
     recipientRole: 'notary',
     linkId: claimedOrder.orderNumber,
     type: 'order',
-    title: 'Open Order Available',
   });
 
   if (claimedOrder.companyId) {

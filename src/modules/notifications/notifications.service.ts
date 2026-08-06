@@ -52,6 +52,21 @@ type RecipientNotificationSettings = {
   preferences: NotificationPreferenceState;
 };
 
+const notarySigningAvailableTitle = 'Signing Available';
+const legacyOpenOrderTitle = 'Open Order Available';
+
+const displayNotificationTitle = (notification: INotification): string => {
+  if (
+    notification.recipientRole === 'notary' &&
+    notification.type === 'order' &&
+    notification.title === legacyOpenOrderTitle
+  ) {
+    return notarySigningAvailableTitle;
+  }
+
+  return notification.title;
+};
+
 const relativeTime = (date: Date): string => {
   const seconds = Math.max(1, Math.floor((Date.now() - date.getTime()) / 1000));
   if (seconds < 60) return `${seconds} sec ago`;
@@ -65,7 +80,7 @@ const relativeTime = (date: Date): string => {
 
 export const serializeNotification = (notification: INotification) => ({
   id: notification._id.toString(),
-  title: notification.title,
+  title: displayNotificationTitle(notification),
   message: notification.message,
   time: relativeTime(notification.createdAt),
   read: notification.read,
