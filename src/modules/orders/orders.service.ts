@@ -186,6 +186,14 @@ const orderLookupQuery = (id: string) => {
   return { orderNumber: { $in: [normalized, withHash, withoutHash] } };
 };
 
+const documentOrderQuery = (id: string) => {
+  const normalized = id.trim();
+  const withHash = normalized.startsWith('#') ? normalized : `#${normalized}`;
+  const withoutHash = normalized.replace(/^#/, '');
+
+  return { orderNumber: { $in: [normalized, withHash, withoutHash] } };
+};
+
 const scopedQuery = (auth: AuthContext, base: Record<string, unknown> = {}) => {
   if (auth.role === 'admin') return base;
   if (auth.role === 'company') return { ...base, companyId: auth.id };
@@ -729,13 +737,41 @@ export const assignNotary = async (
     order.avatarKey = 'none';
     order.openForAll = true;
     order.status = 'Received';
-    pushTimeline(order, 'Order opened to all notaries', 'slate');
+    order.notaryNotes = undefined;
+    order.notaryPrintedConfirmed = false;
+    order.meeting = {
+      status: 'scheduled',
+      date: order.signingDate,
+      time: order.signingTime,
+      scheduledByRole: 'admin',
+      scheduledAt: new Date(),
+      confirmedByRole: undefined,
+      confirmedAt: undefined,
+      rejectedByRole: undefined,
+      rejectedAt: undefined,
+      rejectionNote: undefined,
+      preferredDate: undefined,
+      preferredTime: undefined,
+    };
+    order.documents = order.documents.filter((document) => document.uploadedBy !== 'Notary');
+    order.timeline = [{ title: 'Order opened to all notaries', date: new Date(), tone: 'slate' }];
+
+    await ClosingDocument.deleteMany({
+      ...documentOrderQuery(order.orderNumber),
+      uploaderRole: 'notary',
+    });
 
     await order.save();
 
     const priceTag = typeof order.price === 'number' && order.price > 0 ? ` ($${order.price.toFixed(2)})` : '';
     const openOrderMessage =
       `${order.orderNumber}${priceTag} is open for all notaries. Claim it from your notifications before another notary accepts it.`;
+
+    await expireNotificationsByLinkIdSafely({
+      recipientRole: 'notary',
+      linkId: order.orderNumber,
+      type: 'order',
+    });
 
     if (recipients.length > 0) {
       void notifyNotariesByIdsSafely(
