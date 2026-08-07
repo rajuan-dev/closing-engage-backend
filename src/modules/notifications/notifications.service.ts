@@ -67,6 +67,18 @@ const displayNotificationTitle = (notification: INotification): string => {
   return notification.title;
 };
 
+const displayNotificationInputTitle = (input: CreateNotificationInput): string => {
+  if (
+    input.recipientRole === 'notary' &&
+    input.type === 'order' &&
+    input.title === legacyOpenOrderTitle
+  ) {
+    return notarySigningAvailableTitle;
+  }
+
+  return input.title;
+};
+
 const relativeTime = (date: Date): string => {
   const seconds = Math.max(1, Math.floor((Date.now() - date.getTime()) / 1000));
   if (seconds < 60) return `${seconds} sec ago`;
@@ -191,10 +203,11 @@ export const createNotification = async (input: CreateNotificationInput) => {
   });
 
   emitNotificationCreated(input.recipientRole, String(input.recipientId), serializeNotification(notification));
+  const deliveryTitle = displayNotificationInputTitle(input);
   void sendPushNotificationForNotification({
     recipientId: String(input.recipientId),
     recipientRole: input.recipientRole,
-    title: input.title,
+    title: deliveryTitle,
     message: input.message,
     type: input.type,
     linkId: input.linkId,
