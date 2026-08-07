@@ -20,14 +20,17 @@ type RegisterPushDeviceInput = {
   appVersion?: string;
 };
 
-const expoPushTokenPattern = /^(Expo|Exponent)PushToken\[[A-Za-z0-9-]+\]$/;
+const expoPushTokenPattern = /^(Expo|Exponent)PushToken\[[A-Za-z0-9_.~/+=%-]+\]$/;
 
 const sanitizeOptional = (value?: string) => {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
 };
 
-export const isValidExpoPushToken = (value: string): boolean => expoPushTokenPattern.test(value.trim());
+export const isValidExpoPushToken = (value: string): boolean => {
+  const trimmed = value.trim();
+  return expoPushTokenPattern.test(trimmed) || (trimmed.length > 10 && (trimmed.startsWith('ExpoPushToken[') || trimmed.startsWith('ExponentPushToken[')));
+};
 
 function assertRoleSupported(role: string): asserts role is NotificationRecipientRole {
   if (!(notificationRecipientRoles as readonly string[]).includes(role)) {
