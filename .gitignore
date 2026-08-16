@@ -1,13 +1,11 @@
 node_modules
 dist
-.env
-.env.local
 .DS_Store
 npm-debug.log
 yarn-error.log
 coverage
-.vscode
 .idea
 branch_structure.json
 temp_auto_push.bat
 temp_interactive_push.bat
+config.bat
